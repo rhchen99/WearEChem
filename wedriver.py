@@ -9,6 +9,55 @@ import ok
 
 dev = ok.okCFrontPanel()
 
+def adc_config(tsam,twake,nsam):
+    '''
+        confige ADC settings
+        tsam: ADC sample time (16 bits)
+        twake: ADC wakeup time (16 bits)
+        nsam: ADC number of samples (16 bits)
+    '''
+    dev.SetWireInValue(weconfig.ADC_ENABLE, 1)
+    #set ADC_TSAM register
+    dev.SetWireInValue(weconfig.ADC_TSAM, tsam)
+    #set ADC_TWAKE register
+    dev.SetWireInValue(weconfig.ADC_TWAKE, twake)
+    #set ADC_NSAM register
+    dev.SetWireInValue(weconfig.ADC_NSAM, nsam)
+    dev.UpdateWireIns()
+    #read back and print the settings
+    tsam_out = dev.GetWireOutValue(weconfig.ADC_TSAM)
+    twake_out = dev.GetWireOutValue(weconfig.ADC_TWAKE)
+    nsam_out = dev.GetWireOutValue(weconfig.ADC_NSAM)
+    print(f"ADC configuration complete.\nsampling time: {tsam_out}\nwakeup time: {twake_out}\nnumber of samples: {nsam_out}")
+
+def dac_config(mode,t1,t2,nsam,data_list):
+    '''
+        configure DAC settings
+        mode: 0 for normal mode, 1 for dpv mode
+        t1: DAC time interval 1
+        t2: DAC time interval 2
+        nsam: number of samples
+        data: list of DAC data
+    '''
+    dev.SetWireInValue(weconfig.DAC_ENABLE, 1)
+    #set DAC_MODE register
+    dev.SetWireInValue(weconfig.DAC_MODE, mode)
+    #set DAC_T1 register
+    dev.SetWireInValue(weconfig.DAC_T1, t1)
+    #set DAC_T2 register
+    dev.SetWireInValue(weconfig.DAC_T2, t2)
+    #set DAC_NSAM register
+    dev.SetWireInValue(weconfig.DAC_NSAM, nsam)
+    dev.UpdateWireIns()
+    #read back and print the mode
+    mode_out = dev.GetWireOutValue(weconfig.DAC_MODE)
+    print(f"DAC mode set to: {mode_out}")
+    # Pack data into bytes
+    dataout = b''.join(value.to_bytes(2, 'little') for value in data_list)
+    # Load data to DAC buffer
+    dev.WriteToPipeIn(weconfig.DAC_IN, dataout)
+    print(f'Waveform data has been loaded to DAC buffer.')
+
 def gen_ramp(vstart,vstop,vstep):
     '''
         vstart: starting voltage (mV)
@@ -97,12 +146,6 @@ def fpga_init(bitfile):
         print("FrontPanel is enabled.")
     else:
         print("FrontPanel is not enabled.")
-    #reset fpga
-    dev.SetWireInValue(0x00,1)
-    dev.UpdateWireIns()
-    dev.SetWireInValue(0x00,0)
-    dev.UpdateWireIns()
-    print("FPGA initialization complete.")
 
 def system_reset():
     '''
@@ -111,7 +154,6 @@ def system_reset():
     #set RESET_ALL to 1
     dev.SetWireInValue(weconfig.RST_ALL, 1)
     dev.UpdateWireIns()
-    time.sleep(0.1)
     #set RESET_ALL to 0
     dev.SetWireInValue(weconfig.RST_ALL, 0)
     dev.UpdateWireIns()
@@ -171,18 +213,31 @@ def gen_config_code(I_MUX_OUT,ION_EN,PM_EN,ADC_MUX):
     return code
 
 def analog_to_binary(vin,vref):
-    #convert analog input to 10-bit binary code
+    '''
+        Convert analog voltage to binary code for DAC
+        vin: input voltage (mV)
+        vref: reference voltage (mV)
+    '''
     code = int((vin / vref) * 1024)
     #expand to 16-bit
     code = code << 6
     return code
 
 def binary_to_one_hot(bin,num):
+    '''
+        Convert binary to one-hot encoding
+        bin: binary input (1 to num)
+        num: total number of bits
+    '''
     one_hot = 1
     one_hot = one_hot << (bin-1)
     return one_hot
 
 def binary_to_thermo(bin):
+    '''
+        Convert binary to thermometer encoding
+        bin: binary input (0 to n)
+    '''
     thermo = 0
     for i in range(bin):
         thermo = thermo << 1
@@ -191,10 +246,9 @@ def binary_to_thermo(bin):
 
 
 if __name__ == '__main__':
-    #For scenario where this code is being run as the main code. Debug purpose
-    #data = gen_ramp(200,100,-5)
-    #data = gen_cv(100,200,100,5)
-    #data = gen_dpv(1500,2000,5,100)
+    #For scenario where this code is being run as the main code. Debug purpose only.
     data = gen_config_code(0,0,0,0)
     dataout = data.to_bytes(5, 'little')
+    databin = bin(data)[2:].zfill(40)
+    print(f"{databin}")
     print(f"{dataout}")
