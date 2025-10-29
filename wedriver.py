@@ -9,6 +9,13 @@ import ok
 
 dev = ok.okCFrontPanel()
 
+def task_trigger():
+    '''
+    Trigger a measurement task.
+    '''
+    dev.ActivateTriggerIn(weconfig.TASK_TRIG, 0)
+    print("Measurement task triggered.")
+
 def adc_config(tsam,twake,nsam):
     '''
         confige ADC settings
@@ -16,7 +23,6 @@ def adc_config(tsam,twake,nsam):
         twake: ADC wakeup time (16 bits)
         nsam: ADC number of samples (16 bits)
     '''
-    dev.SetWireInValue(weconfig.ADC_ENABLE, 1)
     #set ADC_TSAM register
     dev.SetWireInValue(weconfig.ADC_TSAM, tsam)
     #set ADC_TWAKE register
@@ -39,7 +45,6 @@ def dac_config(mode,t1,t2,nsam,data_list):
         nsam: number of samples
         data: list of DAC data
     '''
-    dev.SetWireInValue(weconfig.DAC_ENABLE, 1)
     #set DAC_MODE register
     dev.SetWireInValue(weconfig.DAC_MODE, mode)
     #set DAC_T1 register
@@ -118,15 +123,15 @@ def spi_write(data):
     # Pack data into bytes
     dataout = data.to_bytes(5, 'little')
     # Load data to SPI input buffer
-    dev.WriteToPipeIn(weconfig.SPI_IN, dataout)
+    dev.WriteToPipeIn(weconfig.SPI_PIPE_IN, dataout)
     # Trigger SPI to send data into DUT
-    dev.ActivateTriggerIn(weconfig.SPI_TRIG, 0)
+    dev.ActivateTriggerIn(weconfig.SPI_TRIG_IN, 0)
     time.sleep(0.1)
     # Trigger SPI again to pop out data
-    dev.ActivateTriggerIn(weconfig.SPI_TRIG, 0)
+    dev.ActivateTriggerIn(weconfig.SPI_TRIG_IN, 0)
     time.sleep(0.1)
     # Read back from SPI output buffer
-    datain = dev.ReadFromPipeOut(weconfig.SPI_OUT, 5)
+    datain = dev.ReadFromPipeOut(weconfig.SPI_PIPE_OUT, 5)
     # Print the data read from SPI
     print(f'{datain} has been written to SPI 0')
 

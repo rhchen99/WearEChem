@@ -46,22 +46,25 @@ MODE_ION = 4
 # FPGA RST ALL Wire
 RST_ALL = 0x10         # reset all
 
-SYS_TRIG = 0x20        # system trigger
+TASK_TRIG = 0x20        # system task trigger
+
+TASK_MODE = 0x30        # system mode select
+
+TASK_ADC_WAIT = 0x50      # adc wait time configuration
 
 # FPGA SPI CONFIG
-SPI_TRIG = 0x40        # spi trigger
-SPI_IN = 0x80          # spi input buffer (pipein)
-SPI_OUT = 0xA0         # spi output buffer (pipeout)
+SPI_TRIG_IN = 0x40          # spi trigger input
+SPI_TRIG_OUT = 0x60         # spi trigger output
+SPI_PIPE_IN = 0x80         # spi input buffer (pipein)
+SPI_PIPE_OUT = 0xA0         # spi output buffer (pipeout)
 
 # FPGA ADC CONFIG
-ADC_ENABLE = 0x60       # adc enable register
 ADC_TSAM = 0x20         # adc sample time register
 ADC_TWAKE = 0x00        # adc wakeup time register
 ADC_NSAM = 0x50         # adc number of samples register
 ADC_OUT = 0xB0          # adc output buffer (pipeout)
 
 # FPGA DAC CONFIG
-DAC_ENABLE = 0x70       # dac enable register
 DAC_IN = 0x90           # dac input buffer (pipein)
 DAC_MODE = 0x30         # dac mode register
 DAC_T1 = 0xC0           # dac timing register 1
