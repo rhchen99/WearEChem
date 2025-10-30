@@ -16,13 +16,16 @@ def task_trigger():
     dev.ActivateTriggerIn(weconfig.TASK_TRIG, 0)
     print("Measurement task triggered.")
 
-def adc_config(tsam,twake,nsam):
+def adc_config(mode,tsam,twake,nsam):
     '''
         confige ADC settings
-        tsam: ADC sample time (16 bits)
-        twake: ADC wakeup time (16 bits)
-        nsam: ADC number of samples (16 bits)
+        mode: ADC mode: 0 for free running, 1 for incremental
+        tsam: ADC sample time (32 bits)
+        twake: ADC wakeup time (32 bits)
+        nsam: ADC number of samples (32 bits)
     '''
+    #set ADC_MODE register
+    dev.SetWireInValue(weconfig.ADC_MODE, mode)
     #set ADC_TSAM register
     dev.SetWireInValue(weconfig.ADC_TSAM, tsam)
     #set ADC_TWAKE register
@@ -30,13 +33,9 @@ def adc_config(tsam,twake,nsam):
     #set ADC_NSAM register
     dev.SetWireInValue(weconfig.ADC_NSAM, nsam)
     dev.UpdateWireIns()
-    #read back and print the settings
-    tsam_out = dev.GetWireOutValue(weconfig.ADC_TSAM)
-    twake_out = dev.GetWireOutValue(weconfig.ADC_TWAKE)
-    nsam_out = dev.GetWireOutValue(weconfig.ADC_NSAM)
-    print(f"ADC configuration complete.\nsampling time: {tsam_out}\nwakeup time: {twake_out}\nnumber of samples: {nsam_out}")
+    print(f"ADC configuration complete.")
 
-def dac_config(mode,t1,t2,nsam,data_list):
+def dac_config(mode,t1,t2,ts1,ts2,nsam,data_list):
     '''
         configure DAC settings
         mode: 0 for normal mode, 1 for dpv mode
@@ -51,16 +50,18 @@ def dac_config(mode,t1,t2,nsam,data_list):
     dev.SetWireInValue(weconfig.DAC_T1, t1)
     #set DAC_T2 register
     dev.SetWireInValue(weconfig.DAC_T2, t2)
+    #set DAC_TS1 register
+    dev.SetWireInValue(weconfig.DAC_TS1, ts1)
+    #set DAC_TS2 register
+    dev.SetWireInValue(weconfig.DAC_TS2, ts2)
     #set DAC_NSAM register
     dev.SetWireInValue(weconfig.DAC_NSAM, nsam)
     dev.UpdateWireIns()
-    #read back and print the mode
-    mode_out = dev.GetWireOutValue(weconfig.DAC_MODE)
-    print(f"DAC mode set to: {mode_out}")
+    print(f'DAC configuration complete.')
     # Pack data into bytes
-    dataout = b''.join(value.to_bytes(2, 'little') for value in data_list)
+    dataout = b''.join(value.to_bytes(4, 'little') for value in data_list)
     # Load data to DAC buffer
-    dev.WriteToPipeIn(weconfig.DAC_IN, dataout)
+    dev.WriteToPipeIn(weconfig.SPI_WAV, dataout)
     print(f'Waveform data has been loaded to DAC buffer.')
 
 def gen_ramp(vstart,vstop,vstep):
@@ -115,23 +116,33 @@ def gen_dpv(vstart,vstop,vstep,vpulse):
         data.append(bin)
     return data
 
-def spi_write(data):
+def spi_write(data_msb,data_lsb):
     '''
     Write data to SPI interface and read the response.
     '''
-    datain = 0
-    # Pack data into bytes
-    dataout = data.to_bytes(5, 'little')
-    # Load data to SPI input buffer
-    dev.WriteToPipeIn(weconfig.SPI_PIPE_IN, dataout)
+    datain_msb = 0
+    datain_lsb = 0
+    dataout_msb = data_msb.to_bytes(4, 'little')
+    dataout_lsb = data_lsb.to_bytes(4, 'little')
+    # load MSB
+    dev.WriteToPipeIn(weconfig.SPI_CONFIG_MSB, dataout_msb)
+    dev.WriteToPipeIn(weconfig.SPI_CONFIG_MSB, dataout_msb)
+    # load LSB
+    dev.WriteToPipeIn(weconfig.SPI_CONFIG_LSB, dataout_lsb)
+    dev.WriteToPipeIn(weconfig.SPI_CONFIG_LSB, dataout_lsb)
+
     # Trigger SPI to send data into DUT
-    dev.ActivateTriggerIn(weconfig.SPI_TRIG_IN, 0)
+    dev.ActivateTriggerIn(weconfig.TRIG_CONFIG, 0)
     time.sleep(0.1)
     # Trigger SPI again to pop out data
-    dev.ActivateTriggerIn(weconfig.SPI_TRIG_IN, 0)
+    dev.ActivateTriggerIn(weconfig.TRIG_CONFIG, 0)
     time.sleep(0.1)
+
     # Read back from SPI output buffer
-    datain = dev.ReadFromPipeOut(weconfig.SPI_PIPE_OUT, 5)
+    datain_msb = dev.ReadFromPipeOut(weconfig.SPI_OUT_MSB, 4)
+    datain_lsb = dev.ReadFromPipeOut(weconfig.SPI_OUT_LSB, 4)
+    datain = int.from_bytes(datain_msb, 'little') << 32
+    datain = datain + int.from_bytes(datain_lsb, 'little')
     # Print the data read from SPI
     print(f'{datain} has been written to SPI 0')
 
@@ -184,38 +195,39 @@ def system_config(mode):
         ION_EN = 1
         ADC_MUX = 1
     #generate 40-bit config data
-    data = gen_config_code(I_MUX_OUT, ION_EN, PM_EN, ADC_MUX)
+    [data_msb,data_lsb] = gen_config_code(I_MUX_OUT, ION_EN, PM_EN, ADC_MUX)
     #send data to SPI
-    spi_write(data)
+    spi_write(data_msb, data_lsb)
 
 def gen_config_code(I_MUX_OUT,ION_EN,PM_EN,ADC_MUX):
     '''
         assemble 40-bit config code to be sent to SPI0
         with settings from weconfig.py
     '''
-    code = binary_to_one_hot(weconfig.CC_SEL,11)
-    code = code + (weconfig.CC_GAIN << 11)
-    code = code + (weconfig.PSTAT_CLSABRI2X << 13)
-    code = code + (weconfig.PSTAT_CLSABWI2X << 14)
-    code = code + (weconfig.PSTAT_OTARI2X << 15)
-    code = code + (weconfig.PSTAT_OTAWI2X << 16)
-    code = code + (weconfig.PSTAT_S_SRE << 17)
-    code = code + (weconfig.PSTAT_S_CLSABR << 18)
-    code = code + (weconfig.PSTAT_S_OTAR << 19)
-    code = code + (weconfig.PSTAT_S_CLSABW << 20)
-    code = code + (weconfig.PSTAT_S_OTAW << 21)
-    code = code + (weconfig.PSTAT_S_CC << 22)
-    code = code + (weconfig.PSTAT_S_BIAS << 23)
-    code = code + (ADC_MUX << 24)
-    code = code + (binary_to_thermo(weconfig.ADC_C2) << 26)
-    code = code + (weconfig.ADC_STARTUP_SEL << 30)
-    code = code + (binary_to_thermo(weconfig.ADC_OTA2) << 32)
-    code = code + (binary_to_thermo(weconfig.ADC_OTA1) << 34)
-    code = code + (PM_EN << 35)
-    code = code + (ION_EN << 36)
-    code = code + (weconfig.CGM_EXT << 37)
-    code = code + (I_MUX_OUT << 38)
-    return code
+    lsb = binary_to_one_hot(weconfig.CC_SEL,11)
+    lsb = lsb + (weconfig.CC_GAIN << 11)
+    lsb = lsb + (weconfig.PSTAT_CLSABRI2X << 13)
+    lsb = lsb + (weconfig.PSTAT_CLSABWI2X << 14)
+    lsb = lsb + (weconfig.PSTAT_OTARI2X << 15)
+    lsb = lsb + (weconfig.PSTAT_OTAWI2X << 16)
+    lsb = lsb + (weconfig.PSTAT_S_SRE << 17)
+    lsb = lsb + (weconfig.PSTAT_S_CLSABR << 18)
+    lsb = lsb + (weconfig.PSTAT_S_OTAR << 19)
+    lsb = lsb + (weconfig.PSTAT_S_CLSABW << 20)
+    lsb = lsb + (weconfig.PSTAT_S_OTAW << 21)
+    lsb = lsb + (weconfig.PSTAT_S_CC << 22)
+    lsb = lsb + (weconfig.PSTAT_S_BIAS << 23)
+    lsb = lsb + (ADC_MUX << 24)
+    lsb = lsb + (binary_to_thermo(weconfig.ADC_C2) << 26)
+    lsb = lsb + (weconfig.ADC_STARTUP_SEL << 30)
+
+    msb = binary_to_thermo(weconfig.ADC_OTA2)
+    msb = msb + (binary_to_thermo(weconfig.ADC_OTA1) << 2)
+    msb = msb + (PM_EN << 4)
+    msb = msb + (ION_EN << 5)
+    msb = msb + (weconfig.CGM_EXT << 6)
+    msb = msb + (I_MUX_OUT << 7)
+    return msb , lsb
 
 def analog_to_binary(vin,vref):
     '''
@@ -252,8 +264,9 @@ def binary_to_thermo(bin):
 
 if __name__ == '__main__':
     #For scenario where this code is being run as the main code. Debug purpose only.
-    data = gen_config_code(0,0,0,0)
-    dataout = data.to_bytes(5, 'little')
-    databin = bin(data)[2:].zfill(40)
-    print(f"{databin}")
-    print(f"{dataout}")
+    [msb,lsb] = gen_config_code(0,0,0,0)
+    
+    data_lsb = bin(lsb)[2:].zfill(32)
+    data_msb = bin(msb)[2:].zfill(32)
+    print(f"{data_lsb}")
+    print(f"{data_msb}")

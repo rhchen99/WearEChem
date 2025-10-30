@@ -44,29 +44,34 @@ MODE_ION = 4
 # Opal Kelly Endpoint Configuration
 
 # FPGA RST ALL Wire
-RST_ALL = 0x10         # reset all
+RST_ALL = 0x00           # reset all
 
-TASK_TRIG = 0x20        # system task trigger
+TASK_MODE = 0x01        # system mode select
 
-TASK_MODE = 0x30        # system mode select
+# FPGA ADC CONFIG REGISTERS
+ADC_MODE = 0x10         # adc mode register
+ADC_TWAKE = 0x11        # adc wakeup time register
+ADC_TSAM = 0x12         # adc sample time register
+ADC_NSAM = 0x13         # adc number of samples register
 
-TASK_ADC_WAIT = 0x50      # adc wait time configuration
+# FPGA DAC CONFIG REGISTERS
+DAC_MODE = 0x14         # dac mode register
+DAC_T1 = 0x15           # dac timing register 1
+DAC_T2 = 0x16           # dac timing register 2
+DAC_TS1 = 0x17           # dac timing register 1
+DAC_TS2 = 0x18           # dac timing register 2
+DAC_NSAM = 0x19         # dac number of samples register
 
-# FPGA SPI CONFIG
-SPI_TRIG_IN = 0x40          # spi trigger input
-SPI_TRIG_OUT = 0x60         # spi trigger output
-SPI_PIPE_IN = 0x80         # spi input buffer (pipein)
-SPI_PIPE_OUT = 0xA0         # spi output buffer (pipeout)
+#TriggerIn
+TRIG_CONFIG = 0x40       # system config trigger
+TRIG_TASK = 0x41         # system task trigger
 
-# FPGA ADC CONFIG
-ADC_TSAM = 0x20         # adc sample time register
-ADC_TWAKE = 0x00        # adc wakeup time register
-ADC_NSAM = 0x50         # adc number of samples register
-ADC_OUT = 0xB0          # adc output buffer (pipeout)
+# PipeIn Endpoints
+SPI_WAV = 0x80    # SPI waveform data input
+SPI_CONFIG_MSB = 0x90  # SPI config data MSB
+SPI_CONFIG_LSB = 0xA0  # SPI config data LSB
 
-# FPGA DAC CONFIG
-DAC_IN = 0x90           # dac input buffer (pipein)
-DAC_MODE = 0x30         # dac mode register
-DAC_T1 = 0xC0           # dac timing register 1
-DAC_T2 = 0xD0           # dac timing register 2
-DAC_NSAM = 0xE0         # dac number of samples register
+# PipeOut Endpoints
+ADC_OUT = 0xB0   # ADC data output
+SPI_OUT_MSB = 0xC0  # SPI output data MSB
+SPI_OUT_LSB = 0xD0  # SPI output data LSB
