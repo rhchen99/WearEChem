@@ -119,7 +119,7 @@ task_mode = 0;
 adc_mode    = 32'd1;
 adc_twake   = 32'd10;
 adc_tsam    = 32'd16;
-adc_nsam    = 32'd1;
+adc_nsam    = 32'd2;
 
 dac_mode    = 2'b11;
 dac_t1      = 2000;
