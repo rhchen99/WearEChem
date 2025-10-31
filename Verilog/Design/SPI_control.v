@@ -2,50 +2,60 @@ module SPI_control(
     input wire        clk,
     input wire        rst,
     
-    input wire [39:0] data_in,    
+    input wire [31:0] data_in_wav,
+    input wire [31:0] data_in_config_msb,    
+    input wire [31:0] data_in_config_lsb,    
     
-    input wire        trigger_sys,
+    input wire        trigger_config,
     input wire        trigger_dac,
     
     input wire        miso,
     
-    output reg [39:0] data_out,
+    output reg [31:0] data_out_msb,
+    output reg [31:0] data_out_lsb,
     
     output reg        done,
     output reg        spi_sel,
     output reg        cs_b,
     output reg        mosi,
     
-    output reg        wr_en
+    output reg        spi_wav_rd,
+    output reg        spi_config_rd,
+    output reg        spi_out_wr
 );
     
     always @(posedge clk or posedge rst)begin
         if(rst)begin
-            data_out <= 40'd0;
+            data_out_msb <= 32'd0;
+            data_out_lsb <= 32'd0;
         end else begin
             if(!cs_b)begin
-                data_out <= {data_out[38:0],miso};
+                data_out_lsb <= {data_out_lsb[30:0],miso};
+                data_out_msb <= {data_out_msb[30:0],data_out_lsb[31]};
             end
         end
     end
     
-    reg [1:0] state;
-    reg [1:0] next_state;
+    reg [2:0] state;
+    reg [2:0] next_state;
     
 // State encoding
-    localparam IDLE = 2'd0;
-    localparam CONFIG = 2'd1;
-    localparam DAC = 2'd2;
+    localparam IDLE = 3'd0;
+    localparam CONFIG = 3'd1;
+    localparam DAC = 3'd2;
+    
+    localparam LOAD_CONFIG = 3'd3;
+    localparam LOAD_DAC = 3'd4;
     
     reg [39:0]  shift_reg;
     reg [5:0]   bit_cnt;
-    
+    reg cnt;
     
     always @(posedge clk or posedge rst) begin
         if(rst)begin
-            wr_en <= 0;
+            spi_out_wr <= 0;
         end else begin
-            wr_en <= done;
+            spi_out_wr <= done;
         end
     end
     
@@ -57,23 +67,43 @@ module SPI_control(
             bit_cnt     <= 6'd0;
             cs_b        <= 1'b1;
             mosi        <= 1'b0;
-            done        <= 1'b0;            
+            done        <= 1'b0;
+            cnt         <= 0;
+            spi_config_rd <= 0;
+            spi_wav_rd <= 0;
+                        
         end else begin
+            spi_config_rd <= 0;
+            spi_wav_rd <= 0;
             spi_sel <= 1'b0;
             state <= next_state;
             done <= 1'b0;
             case(state)
                 IDLE: begin
                     cs_b <= 1'b1;
-                    if(trigger_sys) begin
-                        shift_reg <= data_in;
-                        bit_cnt <= 6'd39;
+                    cnt <= 0;
+                    if(trigger_config) begin
+                        spi_config_rd <= 1;
                     end
                     if(trigger_dac) begin
-                        shift_reg <= data_in;
+                        spi_wav_rd <= 1;
+                    end
+                end
+                LOAD_CONFIG: begin
+                    cnt <= cnt +1;
+                    if(cnt)begin
+                        shift_reg <= {data_in_config_msb[7:0], data_in_config_lsb};
                         bit_cnt <= 6'd39;
                     end
                 end
+                LOAD_DAC: begin
+                    cnt <= cnt +1;
+                    if(cnt)begin
+                        shift_reg <= {data_in_wav,8'b0};
+                        bit_cnt <= 6'd39;
+                    end
+                end
+                
                 CONFIG: begin
                     cs_b <= 1'b0;
                     spi_sel <= 1'b0;
@@ -108,10 +138,18 @@ module SPI_control(
         next_state = state;
         case (state)
             IDLE: begin
-                if (trigger_sys)
-                    next_state = CONFIG;
+                if (trigger_config)
+                    next_state = LOAD_CONFIG;
                 if (trigger_dac)
-                    next_state = DAC;
+                    next_state = LOAD_DAC;
+            end
+            LOAD_CONFIG: begin
+                if(cnt)
+                next_state = CONFIG;
+            end
+            LOAD_DAC: begin
+                if(cnt)
+                next_state = DAC;
             end
             CONFIG: begin
                 if (bit_cnt == 0)

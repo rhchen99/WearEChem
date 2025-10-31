@@ -13,7 +13,7 @@ def task_trigger():
     '''
     Trigger a measurement task.
     '''
-    dev.ActivateTriggerIn(weconfig.TASK_TRIG, 0)
+    dev.ActivateTriggerIn(weconfig.TRIG_TASK, 0)
     print("Measurement task triggered.")
 
 def adc_config(mode,tsam,twake,nsam):
@@ -236,8 +236,8 @@ def analog_to_binary(vin,vref):
         vref: reference voltage (mV)
     '''
     code = int((vin / vref) * 1024)
-    #expand to 16-bit
-    code = code << 6
+    #expand to 32-bit
+    code = code << 22
     return code
 
 def binary_to_one_hot(bin,num):
@@ -264,9 +264,29 @@ def binary_to_thermo(bin):
 
 if __name__ == '__main__':
     #For scenario where this code is being run as the main code. Debug purpose only.
-    [msb,lsb] = gen_config_code(0,0,0,0)
+    #[msb,lsb] = gen_config_code(0,0,0,0)
     
-    data_lsb = bin(lsb)[2:].zfill(32)
-    data_msb = bin(msb)[2:].zfill(32)
-    print(f"{data_lsb}")
-    print(f"{data_msb}")
+    #data_lsb = bin(lsb)[2:].zfill(32)
+    #data_msb = bin(msb)[2:].zfill(32)
+    #print(f"{data_lsb}")
+    #print(f"{data_msb}")
+    wav = gen_ramp(500,2500,10)
+
+    [msb,lsb] = gen_config_code(0,0,0,0)
+
+    with open("Memory/mem_config_msb.mem","w") as mem_config_msb:
+        for i in range(2):
+            data_32 = bin(msb)[2:].zfill(32)
+            mem_config_msb.write(f"{data_32} ")
+            print(f"MSB: {data_32}")
+    with open("Memory/mem_config_lsb.mem","w") as mem_config_lsb:
+        for i in range(2):
+            data_32 = bin(lsb)[2:].zfill(32)
+            mem_config_lsb.write(f"{data_32} ")
+            print(f"LSB: {data_32}")
+
+    with open("Memory/mem_wav.mem","w") as mem_wav:
+        for i in range(len(wav)):
+            data_32 = bin(wav[i])[2:].zfill(32)
+            mem_wav.write(f"{data_32} ")
+            print(f"{i}: {data_32}")
