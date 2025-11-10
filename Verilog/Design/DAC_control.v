@@ -3,7 +3,7 @@ module DAC_control(
     input  wire rst,          // Active-low reset
     
     //settings
-    input  wire [1:0]  mode,         //0: Default mode, 1: DPV mode
+    input  wire        mode,         //0: Default mode, 1: ADC enabled
     input  wire [31:0] T1,    //T1 cycles
     input  wire [31:0] T2,    //T2 cycles (only for DPV)
     input  wire [31:0] TS1,
@@ -68,7 +68,7 @@ module DAC_control(
                 STATE1: begin
                     cntA <= cntA + 1'b1;
                     
-                    if (cntA == TS1 && mode[1]) begin
+                    if (cntA == TS1 && mode) begin
                         adc_trigger <= 1'b1;
                     end
                     
@@ -76,33 +76,19 @@ module DAC_control(
                         spi_trigger <= 1'b1;
                     end
                     
-                    if (mode[0] == 0) begin
-                        // MODE 0 (original)
-                        if (cntA == T1 - 1) begin
-                            cntA <= 0;
-                            dac_ptr <= dac_ptr + 1'b1;
-                            if (dac_ptr == NSAM - 1) begin
-                                dac_ptr <= 0;
-                                done  <= 1'b1;
-                                state <= IDLE;
-                            end
-                        end
-                    end 
                     
-                    else begin
-                        // MODE 1 (three-state)
-                        if (cntA == T1 - 1) begin
-                            cntA <= 0;
-                            dac_ptr <= dac_ptr + 1'b1; // increment in STATE1
-                            if (dac_ptr == NSAM - 1) begin
-                                dac_ptr <= 0;
-                                done  <= 1'b1;
-                                state <= IDLE;
-                            end else begin
-                                state <= STATE2;
-                            end
+                    if (cntA == T1 - 1) begin
+                        cntA <= 0;
+                        dac_ptr <= dac_ptr + 1'b1; // increment in STATE1
+                        if (dac_ptr == NSAM - 1) begin
+                            dac_ptr <= 0;
+                            done  <= 1'b1;
+                            state <= IDLE;
+                        end else begin
+                            state <= STATE2;
                         end
                     end
+                    
                 end
 
                 //--------------------------------------------------
@@ -115,7 +101,7 @@ module DAC_control(
                         spi_trigger <= 1'b1;
                     end
                     
-                    if (cntA == TS2 && mode[1]) begin
+                    if (cntA == TS2 && mode) begin
                         adc_trigger <= 1'b1;
                     end
                     

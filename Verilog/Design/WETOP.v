@@ -4,7 +4,7 @@ module WETOP(
     //task settings
     input   wire            task_mode,
     //dac settings
-    input   wire   [1:0]    dac_mode,
+    input   wire            dac_mode,
     input   wire   [31:0]   dac_T1,
     input   wire   [31:0]   dac_T2,
     input   wire   [31:0]   dac_TS1,
@@ -21,7 +21,11 @@ module WETOP(
     input   wire            trigger_task,       //trigger to task FSM
 
     //fifo read and write
-    input   wire            adc_out_rd,    //adc output fifo read enable
+//    input   wire            adc_out_ping_rd,    //adc output fifo read enable
+//    input   wire            adc_out_pong_rd,    //adc output fifo read enable
+
+    input   wire            adc_out_rd,
+    
     input   wire            spi_out_rd,    //spi output fifo read enable
     input   wire            spi_wav_wr,
     input   wire            spi_config_wr,
@@ -37,7 +41,9 @@ module WETOP(
     //data output
     output  wire    [31:0]  data_out_spi_msb,       //spi output fifo data output
     output  wire    [31:0]  data_out_spi_lsb,       //spi output fifo data output
-    output  wire    [31:0]  data_out_adc,           //spi output fifo data output
+//    output  wire    [31:0]  data_out_adc_ping,           //spi output fifo data output
+//    output  wire    [31:0]  data_out_adc_pong,           //spi output fifo data output
+    output  wire    [31:0]  data_out_adc,
     //CHIP interface
     
     input   wire MISO,
@@ -107,6 +113,13 @@ ADC_control adc_control(
     
     .trigger(trigger_adc),
     .adc_out_wr(adc_out_wr),
+    
+//    .adc_out_ping_wr(adc_out_ping_wr),
+//    .adc_out_pong_wr(adc_out_pong_wr),
+    
+//    .adc_out_ping_full(adc_out_ping_full),
+//    .adc_out_pong_full(adc_out_pong_full),
+    
     .done(done_adc),
     .SLP(SLP),
     .DAC_STP_EXT(DAC_STP_EXT),
@@ -218,7 +231,6 @@ fifo_sync #(
     .rd_data (data_out_spi_lsb)
 );
 
-
 fifo_sync #(
     .DATA_WIDTH(32),
     .DEPTH(1024)
@@ -232,6 +244,39 @@ fifo_sync #(
     .rd_en   (adc_out_rd),
     .rd_data (data_out_adc)
 );
+
+
+//fifo_sync #(
+//    .DATA_WIDTH(32),
+//    .DEPTH(1024)
+//) adc_out_ping_fifo (
+//    .clk     (clk),
+//    .rst     (rst),
+
+//    .wr_en   (adc_out_ping_wr),
+//    .wr_data (adc_data_out),
+
+//    .rd_en   (adc_out_ping_rd),
+//    .rd_data (data_out_adc_ping),
+    
+//    .full    (adc_out_ping_full)
+//);
+
+//fifo_sync #(
+//    .DATA_WIDTH(32),
+//    .DEPTH(1024)
+//) adc_out_pong_fifo (
+//    .clk     (clk),
+//    .rst     (rst),
+
+//    .wr_en   (adc_out_pong_wr),
+//    .wr_data (adc_data_out),
+
+//    .rd_en   (adc_out_pong_rd),
+//    .rd_data (data_out_adc_pong),
+    
+//    .full    (adc_out_pong_full)
+//);
 
 
 endmodule
