@@ -1,5 +1,8 @@
 module WETOP(
-    input   wire            clk,                //system clock (should be 512kHz)
+    input   wire            clk_100m,              //interface clock (should be 100MHz)
+    
+    input   wire            clk_512k,            // logic clock (should be 512kHz)
+    
     input   wire            rst,                //system reset
     //task settings
     input   wire            task_mode,
@@ -21,16 +24,16 @@ module WETOP(
     input   wire            trigger_task,       //trigger to task FSM
 
     //fifo read and write
-//    input   wire            adc_out_ping_rd,    //adc output fifo read enable
-//    input   wire            adc_out_pong_rd,    //adc output fifo read enable
 
     input   wire            adc_out_rd,
     
-    input   wire            spi_out_rd,    //spi output fifo read enable
-    input   wire            spi_wav_wr,
-    input   wire            spi_config_wr,
-    
+    input   wire            spi_out_msb_rd,    //spi output fifo read enable
+    input   wire            spi_out_lsb_rd,    //spi output fifo read enable
 
+    input   wire            spi_wav_wr,
+    input   wire            spi_config_msb_wr,
+    input   wire            spi_config_lsb_wr,
+    
     output  wire            done_spi,           //spi FSM done flag
     output  wire            done_task,          //task done flag
     
@@ -41,8 +44,7 @@ module WETOP(
     //data output
     output  wire    [31:0]  data_out_spi_msb,       //spi output fifo data output
     output  wire    [31:0]  data_out_spi_lsb,       //spi output fifo data output
-//    output  wire    [31:0]  data_out_adc_ping,           //spi output fifo data output
-//    output  wire    [31:0]  data_out_adc_pong,           //spi output fifo data output
+
     output  wire    [31:0]  data_out_adc,
     //CHIP interface
     
@@ -71,7 +73,7 @@ wire [31:0] adc_data_out;
 assign trigger_adc = trigger_adc_task || trigger_adc_dac;
 
 task_trigger task_trigger(
-    .clk(clk),
+    .clk(clk_512k),
     .rst(rst),
     .mode(task_mode),
     .trigger_task(trigger_task),
@@ -83,7 +85,7 @@ task_trigger task_trigger(
 );
 
 DAC_control dac_control(
-    .clk(clk),
+    .clk(clk_512k),
     .rst(rst),
     
     .mode(dac_mode),
@@ -103,7 +105,7 @@ DAC_control dac_control(
 );
 
 ADC_control adc_control(
-    .clk(clk),
+    .clk(clk_512k),
     .rst(rst),
     
     .mode(adc_mode),
@@ -113,12 +115,6 @@ ADC_control adc_control(
     
     .trigger(trigger_adc),
     .adc_out_wr(adc_out_wr),
-    
-//    .adc_out_ping_wr(adc_out_ping_wr),
-//    .adc_out_pong_wr(adc_out_pong_wr),
-    
-//    .adc_out_ping_full(adc_out_ping_full),
-//    .adc_out_pong_full(adc_out_pong_full),
     
     .done(done_adc),
     .SLP(SLP),
@@ -132,7 +128,7 @@ ADC_control adc_control(
 
 
 SPI_control spicontrol(
-    .clk(clk),
+    .clk(clk_512k),
     .rst(rst),
     
     .data_in_wav(data_in_wav),
@@ -158,125 +154,88 @@ SPI_control spicontrol(
 );
 
 
-fifo_sync #(
-    .DATA_WIDTH(32),
-    .DEPTH(1024)
-) wav_fifo (
-    .clk     (clk),
-    .rst     (rst),
-
-    .wr_en   (spi_wav_wr),
-    .wr_data (spi_wav_in),
-
-    .rd_en   (spi_wav_rd),
-    .rd_data (data_in_wav)
-
+fifo_w32_d1024 wav_fifo(
+    .rst(rst),
+    .wr_clk(clk_100m),
+    .rd_clk(clk_512k),
+    .din(spi_wav_in),
+    .wr_en(spi_wav_wr),
+    .rd_en(spi_wav_rd),
+    .dout(data_in_wav),
+    .full(),
+    .empty(),
+    .wr_rst_busy(),
+    .rd_rst_busy()
 );
 
-fifo_sync #(
-    .DATA_WIDTH(32),
-    .DEPTH(4)
-) config_msb_fifo (
-    .clk     (clk),
-    .rst     (rst),
-
-    .wr_en   (spi_config_wr),
-    .wr_data (spi_config_msb_in),
-
-    .rd_en   (spi_config_rd),
-    .rd_data (data_in_config_msb)
-
+fifo_w32_d1024 config_msb_fifo(
+    .rst(rst),
+    .wr_clk(clk_100m),
+    .rd_clk(clk_512k),
+    .din(spi_config_msb_in),
+    .wr_en(spi_config_msb_wr),
+    .rd_en(spi_config_rd),
+    .dout(data_in_config_msb),
+    .full(),
+    .empty(),
+    .wr_rst_busy(),
+    .rd_rst_busy()
 );
 
-fifo_sync #(
-    .DATA_WIDTH(32),
-    .DEPTH(4)
-) config_lsb_fifo (
-    .clk     (clk),
-    .rst     (rst),
-
-    .wr_en   (spi_config_wr),
-    .wr_data (spi_config_lsb_in),
-
-    .rd_en   (spi_config_rd),
-    .rd_data (data_in_config_lsb)
-
+fifo_w32_d1024 config_lsb_fifo(
+    .rst(rst),
+    .wr_clk(clk_100m),
+    .rd_clk(clk_512k),
+    .din(spi_config_lsb_in),
+    .wr_en(spi_config_lsb_wr),
+    .rd_en(spi_config_rd),
+    .dout(data_in_config_lsb),
+    .full(),
+    .empty(),
+    .wr_rst_busy(),
+    .rd_rst_busy()
 );
 
-fifo_sync #(
-    .DATA_WIDTH(32),
-    .DEPTH(1024)
-) spi_out_msb_fifo (
-    .clk     (clk),
-    .rst     (rst),
-
-    .wr_en   (spi_out_wr),
-    .wr_data (spi_out_msb),
-
-    .rd_en   (spi_out_rd),
-    .rd_data (data_out_spi_msb)
+fifo_w32_d1024 spi_out_msb_fifo(
+    .rst(rst),
+    .wr_clk(clk_512k),
+    .rd_clk(clk_100m),
+    .din(spi_out_msb),
+    .wr_en(spi_out_wr),
+    .rd_en(spi_out_msb_rd),
+    .dout(data_out_spi_msb),
+    .full(),
+    .empty(),
+    .wr_rst_busy(),
+    .rd_rst_busy()
 );
 
-fifo_sync #(
-    .DATA_WIDTH(32),
-    .DEPTH(1024)
-) spi_out_lsb_fifo (
-    .clk     (clk),
-    .rst     (rst),
-
-    .wr_en   (spi_out_wr),
-    .wr_data (spi_out_lsb),
-
-    .rd_en   (spi_out_rd),
-    .rd_data (data_out_spi_lsb)
+fifo_w32_d1024 spi_out_lsb_fifo(
+    .rst(rst),
+    .wr_clk(clk_512k),
+    .rd_clk(clk_100m),
+    .din(spi_out_lsb),
+    .wr_en(spi_out_wr),
+    .rd_en(spi_out_lsb_rd),
+    .dout(data_out_spi_lsb),
+    .full(),
+    .empty(),
+    .wr_rst_busy(),
+    .rd_rst_busy()
 );
 
-fifo_sync #(
-    .DATA_WIDTH(32),
-    .DEPTH(1024)
-) adc_out_fifo (
-    .clk     (clk),
-    .rst     (rst),
-
-    .wr_en   (adc_out_wr),
-    .wr_data (adc_data_out),
-
-    .rd_en   (adc_out_rd),
-    .rd_data (data_out_adc)
+fifo_w32_d1024 adc_out_fifo(
+    .rst(rst),
+    .wr_clk(clk_512k),
+    .rd_clk(clk_100m),
+    .din(adc_data_out),
+    .wr_en(adc_out_wr),
+    .rd_en(adc_out_rd),
+    .dout(data_out_adc),
+    .full(),
+    .empty(),
+    .wr_rst_busy(),
+    .rd_rst_busy()
 );
-
-
-//fifo_sync #(
-//    .DATA_WIDTH(32),
-//    .DEPTH(1024)
-//) adc_out_ping_fifo (
-//    .clk     (clk),
-//    .rst     (rst),
-
-//    .wr_en   (adc_out_ping_wr),
-//    .wr_data (adc_data_out),
-
-//    .rd_en   (adc_out_ping_rd),
-//    .rd_data (data_out_adc_ping),
-    
-//    .full    (adc_out_ping_full)
-//);
-
-//fifo_sync #(
-//    .DATA_WIDTH(32),
-//    .DEPTH(1024)
-//) adc_out_pong_fifo (
-//    .clk     (clk),
-//    .rst     (rst),
-
-//    .wr_en   (adc_out_pong_wr),
-//    .wr_data (adc_data_out),
-
-//    .rd_en   (adc_out_pong_rd),
-//    .rd_data (data_out_adc_pong),
-    
-//    .full    (adc_out_pong_full)
-//);
-
 
 endmodule

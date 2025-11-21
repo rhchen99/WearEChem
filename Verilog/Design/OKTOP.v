@@ -32,7 +32,7 @@ module OKTOP (
     wire [112:0] okHE;
     wire [64:0]  okEH;
 
-    wire [65*6-1:0] okEHx;
+    wire [65*10-1:0] okEHx;
 
     okHost okHI (
         .okUH (okUH),
@@ -44,11 +44,11 @@ module OKTOP (
         .okEH (okEH)
     );
 
-    okWireOR #(.N(6)) wireOR (
+    okWireOR #(.N(10)) wireOR (
         .okEH (okEH),
         .okEHx(okEHx)
     );
-
+    
     //=====================================================================
     // WireIns: reset, modes, DAC + ADC settings
     //=====================================================================
@@ -63,16 +63,6 @@ module OKTOP (
     okWireIn w06 (.okHE(okHE), .ep_addr(8'h06), .ep_dataout(wi06));
     okWireIn w07 (.okHE(okHE), .ep_addr(8'h07), .ep_dataout(wi07));
     okWireIn w08 (.okHE(okHE), .ep_addr(8'h08), .ep_dataout(wi08));
-
-    // ASIC config wires
-    wire [31:0] wi09, wi0A, wi0B, wi0C, wi0D, wi0E;
-
-    okWireIn w09 (.okHE(okHE), .ep_addr(8'h09), .ep_dataout(wi09)); // PSTAT enables
-    okWireIn w0A (.okHE(okHE), .ep_addr(8'h0A), .ep_dataout(wi0A)); // I2X switches
-    okWireIn w0B (.okHE(okHE), .ep_addr(8'h0B), .ep_dataout(wi0B)); // CC gain/sel
-    okWireIn w0C (.okHE(okHE), .ep_addr(8'h0C), .ep_dataout(wi0C)); // ADC OTA1/2
-    okWireIn w0D (.okHE(okHE), .ep_addr(8'h0D), .ep_dataout(wi0D)); // ADC startup/c2
-    okWireIn w0E (.okHE(okHE), .ep_addr(8'h0E), .ep_dataout(wi0E)); // CGM_EXT
 
     // Decode control & settings
     wire rst_we    = wi00[0];
@@ -89,6 +79,18 @@ module OKTOP (
     wire [31:0] adc_TWAKE   = wi06;
     wire [31:0] adc_TSAMPLE = wi07;
     wire [31:0] adc_NSAM    = wi08;
+    
+    //==============
+    //clock
+    //==============
+    wire weClk;
+    
+//    clk_wiz_0 clk_64m(
+//        .clk_sys(sys_clk),
+//        .clk_64m(weClk),
+//        .reset(rst_we)
+//    );
+    assign weClk = okClk;
 
     //=====================================================================
     // TriggerIn
@@ -97,7 +99,7 @@ module OKTOP (
     okTriggerIn t40 (
         .okHE      (okHE),
         .ep_addr   (8'h40),
-        .ep_clk    (okClk),
+        .ep_clk    (weClk),
         .ep_trigger(trig40)
     );
 
@@ -105,85 +107,47 @@ module OKTOP (
     wire trigger_task   = trig40[1];
 
     //=====================================================================
-    // PipeIn 0x80 : Config FIFO
+    // PipeIn 0x80 : spi_msb
     //=====================================================================
-    wire [31:0] cfg_pipe_data;
-    wire        cfg_pipe_write;
+    wire [31:0] spi_config_msb_in;
+    wire        spi_config_msb_wr;
 
-    okPipeIn p80_cfg (
+    okPipeIn p80_spi_msb (
         .okHE(okHE),
-        .okEH(okEHx[3*65 +: 65]),
+        .okEH(okEHx[0*65 +: 65]),
         .ep_addr(8'h80),
-        .ep_dataout(cfg_pipe_data),
-        .ep_write(cfg_pipe_write)
+        .ep_dataout(spi_config_msb_in),
+        .ep_write(spi_config_msb_wr)
     );
-
-    reg [31:0] cfg_msb_reg, cfg_lsb_reg;
-    reg        cfg_phase;
-    reg        spi_config_wr_reg;
-
-    always @(posedge okClk or posedge rst_we) begin
-        if (rst_we) begin
-            cfg_msb_reg       <= 32'd0;
-            cfg_lsb_reg       <= 32'd0;
-            cfg_phase         <= 1'b0;
-            spi_config_wr_reg <= 1'b0;
-        end else begin
-            spi_config_wr_reg <= 1'b0;
-            if (cfg_pipe_write) begin
-                if (!cfg_phase) begin
-                    cfg_msb_reg <= cfg_pipe_data;
-                    cfg_phase   <= 1'b1;
-                end else begin
-                    cfg_lsb_reg       <= cfg_pipe_data;
-                    cfg_phase         <= 1'b0;
-                    spi_config_wr_reg <= 1'b1;
-                end
-            end
-        end
-    end
-
-    wire [31:0] spi_config_msb_host = cfg_msb_reg;
-    wire [31:0] spi_config_lsb_host = cfg_lsb_reg;
-    wire        spi_config_wr       = spi_config_wr_reg;
-
-    // ASIC config packer (40-bit)
-    wire [39:0] asic_word = {
-        wi0C[4:0],      // ADC OTA settings
-        wi0D[2:0],      // ADC startup sel
-        wi0D[7:4],      // ADC C2
-        wi09[6:0],      // PSTAT block enables
-        wi0A[3:0],      // I2X switches
-        wi0B[2:0],      // CC gain
-        wi0B[11:7],     // CC sel (5 bits)
-        wi0E[0],        // CGM_EXT
-        8'd0            // pad
-    };
-
-    // Select host 40-bit or ASIC 40-bit
-    wire use_host = spi_config_wr;
-    wire [39:0] spi_word = use_host ?
-                           {spi_config_msb_host[7:0], spi_config_lsb_host} :
-                           asic_word;
-
-    // Split into MSB/LSB for SPI_control
-    wire [31:0] spi_config_msb_in = {24'd0, spi_word[39:32]};
-    wire [31:0] spi_config_lsb_in = spi_word[31:0];
-
+    
     //=====================================================================
-    // PipeIn 0x81 : waveform
+    // PipeIn 0x81 : spi_lsb
+    //=====================================================================
+    wire [31:0] spi_config_lsb_in;
+    wire        spi_config_lsb_wr;
+
+    okPipeIn p81_spi_lsb (
+        .okHE(okHE),
+        .okEH(okEHx[1*65 +: 65]),
+        .ep_addr(8'h81),
+        .ep_dataout(spi_config_lsb_in),
+        .ep_write(spi_config_lsb_wr)
+    );
+    
+    //=====================================================================
+    // PipeIn 0x82 : waveform
     //=====================================================================
     wire [31:0] spi_wav_in;
     wire        spi_wav_wr;
 
-    okPipeIn p81_wav (
+    okPipeIn p82_wav (
         .okHE(okHE),
-        .okEH(okEHx[4*65 +: 65]),
-        .ep_addr(8'h81),
+        .okEH(okEHx[2*65 +: 65]),
+        .ep_addr(8'h82),
         .ep_dataout(spi_wav_in),
         .ep_write(spi_wav_wr)
     );
-
+    
     //=====================================================================
     // WireOut 0x20
     //=====================================================================
@@ -191,40 +155,74 @@ module OKTOP (
 
     okWireOut w20 (
         .okHE(okHE),
-        .okEH(okEHx[0 +: 65]),
+        .okEH(okEHx[3*65 +: 65]),
         .ep_addr(8'h20),
         .ep_datain(status20)
     );
-
+    
     //=====================================================================
-    // PipeOut SPI
+    // WireOut 0x21 spi_done_count
     //=====================================================================
-    wire [31:0] data_out_spi_msb;
-    wire [31:0] data_out_spi_lsb;
-    wire        spi_out_rd;
+    wire [31:0] status21;
 
-    okPipeOut pA0_spi (
+    okWireOut w21 (
         .okHE(okHE),
-        .okEH(okEHx[1*65 +: 65]),
-        .ep_addr(8'hA0),
-        .ep_datain(data_out_spi_msb),
-        .ep_read(spi_out_rd)
+        .okEH(okEHx[8*65 +: 65]),
+        .ep_addr(8'h21),
+        .ep_datain(status21)
+    );
+    
+    wire [31:0] status22;
+
+    okWireOut w22 (
+        .okHE(okHE),
+        .okEH(okEHx[9*65 +: 65]),
+        .ep_addr(8'h22),
+        .ep_datain(status22)
     );
 
     //=====================================================================
-    // PipeOut ADC
+    // PipeOut 0xA0: spi_msb
+    //=====================================================================
+    wire [31:0] data_out_spi_msb;
+    wire        spi_out_msb_rd;
+
+    okPipeOut pA0_spi_msb (
+        .okHE(okHE),
+        .okEH(okEHx[4*65 +: 65]),
+        .ep_addr(8'hA0),
+        .ep_datain(data_out_spi_msb),
+        .ep_read(spi_out_msb_rd)
+    );
+    
+    //=====================================================================
+    // PipeOut 0xA1: spi_lsb
+    //=====================================================================
+    wire [31:0] data_out_spi_lsb;
+    wire        spi_out_lsb_rd;
+
+    okPipeOut pA1_spi_lsb (
+        .okHE(okHE),
+        .okEH(okEHx[5*65 +: 65]),
+        .ep_addr(8'hA1),
+        .ep_datain(data_out_spi_lsb),
+        .ep_read(spi_out_lsb_rd)
+    );
+
+    //=====================================================================
+    // PipeOut 0xA2: adc
     //=====================================================================
     wire [31:0] data_out_adc;
     wire        adc_out_rd;
 
-    okPipeOut pA1_adc (
+    okPipeOut pA2_adc (
         .okHE(okHE),
-        .okEH(okEHx[2*65 +: 65]),
-        .ep_addr(8'hA1),
+        .okEH(okEHx[6*65 +: 65]),
+        .ep_addr(8'hA2),
         .ep_datain(data_out_adc),
         .ep_read(adc_out_rd)
     );
-
+    
     //=====================================================================
     // TriggerOut 0x60
     //=====================================================================
@@ -245,11 +243,30 @@ module OKTOP (
 
     okTriggerOut t60 (
         .okHE(okHE),
-        .okEH(okEHx[5*65 +: 65]),
+        .okEH(okEHx[7*65 +: 65]),
         .ep_addr(8'h60),
-        .ep_clk(okClk),
+        .ep_clk(weClk),
         .ep_trigger(trig60_bus)
     );
+    
+    reg [31:0] spi_done_cnt;
+    always @(posedge okClk or posedge rst_we) begin
+        if (rst_we)
+            spi_done_cnt <= 32'd0;
+        else if (done_spi)begin
+            spi_done_cnt <= spi_done_cnt + 1;
+        end
+    end
+    
+    reg [31:0] task_done_cnt;
+    always @(posedge okClk or posedge rst_we) begin
+        if (rst_we)
+            task_done_cnt <= 32'd0;
+        else if (done_task)begin
+            task_done_cnt <= task_done_cnt + 1;
+        end
+    end
+    
 
     //=====================================================================
     // Dummy SPI + ADC wiring
@@ -263,7 +280,8 @@ module OKTOP (
     // WETOP instance
     //=====================================================================
     WETOP wetop_inst (
-        .clk(okClk),
+        .clk_100m(okClk),
+        .clk_512k(weClk),
         .rst(rst_we),
 
         .task_mode(task_mode),
@@ -283,9 +301,12 @@ module OKTOP (
         .trigger_task(trigger_task),
 
         .adc_out_rd(adc_out_rd),
-        .spi_out_rd(spi_out_rd),
+        .spi_out_msb_rd(spi_out_msb_rd),
+        .spi_out_lsb_rd(spi_out_lsb_rd),
+        
         .spi_wav_wr(spi_wav_wr),
-        .spi_config_wr(spi_config_wr),
+        .spi_config_msb_wr(spi_config_msb_wr),
+        .spi_config_lsb_wr(spi_config_lsb_wr),
 
         .done_spi(done_spi),
         .done_task(done_task),
@@ -314,7 +335,7 @@ module OKTOP (
     );
 
     dummySPI fake_spi (
-        .clk(okClk),
+        .clk(weClk),
         .rst(rst_we),
         .spi_sel(SPI_SEL),
         .cs_b(CS_B),
@@ -324,7 +345,7 @@ module OKTOP (
     );
 
     dummyADC fake_adc (
-        .clk(okClk),
+        .clk(weClk),
         .rst_adc(RST_ADC),
         .slp(SLP),
         .clk_s_d_out(CLK_S_D_OUT),
@@ -334,5 +355,7 @@ module OKTOP (
     assign status20[0]    = done_spi;
     assign status20[1]    = done_task;
     assign status20[31:2] = 30'd0;
+    assign status21       = spi_done_cnt;
+    assign status22       = task_done_cnt;
 
 endmodule
