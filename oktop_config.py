@@ -2,7 +2,7 @@
 # Combined ASIC config + OKTOP endpoint map
 
 # ----- Bitfile -----
-BITFILE = "oktop_2.bit"
+BITFILE = "weok.bit"
 
 # ------------------------------
 # ASIC MODE / CONFIG CONSTANTS
@@ -91,6 +91,9 @@ EP_WO_STATUS = 0x20
 STATUS_DONE_SPI_BIT  = 1 << 0
 STATUS_DONE_TASK_BIT = 1 << 1
 
+EP_WO_SPI_CNT = 0x21
+EP_WO_TSK_CNT = 0x22
+
 # TriggerIn 0x40
 EP_TI_MAIN       = 0x40
 TRIG_CONFIG_BIT  = 1 << 0   # maps to trigger_config
@@ -101,9 +104,13 @@ EP_TO_MAIN         = 0x60
 TRIG_TASK_DONE_BIT = 1 << 0  # task_done_pulse
 
 # PipeIn
-EP_PI_CONFIG   = 0x80   # config MSB+LSB packer (host 40-bit)
-EP_PI_WAVEFORM = 0x81   # waveform FIFO
+EP_PI_CONFIG_MSB   = 0x80   # config MSB
+EP_PI_CONFIG_LSB   = 0x81   # config LSB
+EP_PI_WAVEFORM     = 0x82   # waveform FIFO
+EP_PI_TST_IN       = 0x83   # test input FIFO (for debug)
 
 # PipeOut
-EP_PO_SPI_OUT = 0xA0    # SPI output MSB FIFO
-EP_PO_ADC_OUT = 0xA1    # ADC output FIFO
+EP_PO_SPI_OUT_MSB = 0xA0    # SPI output MSB FIFO
+EP_PO_SPI_OUT_LSB = 0xA1    # SPI output MSB FIFO
+EP_PO_ADC_OUT     = 0xA2    # ADC output FIFO
+EP_PO_TST_OUT     = 0xA3    # test output FIFO (for debug)

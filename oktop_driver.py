@@ -8,7 +8,6 @@ import time
 import ok
 import oktop_config as cfg
 
-
 class OKTop:
     def __init__(self, bitfile: str, serial: str = ""):
         self.dev = ok.okCFrontPanel()
@@ -62,7 +61,7 @@ class OKTop:
     def system_reset(self):
         """Reset the system via WireIn 0x00 bit0."""
         print("Asserting reset...")
-        self.pulse_ctrl_bit(cfg.CTRL_RST_BIT, pulse_time=0.0)
+        self.pulse_ctrl_bit(cfg.CTRL_RST_BIT, pulse_time=0.1)
         print("Reset done.")
 
     def set_modes(self, task_mode: int, dac_mode: int, adc_mode: int):
@@ -97,72 +96,7 @@ class OKTop:
         self.dev.UpdateWireIns()
         print("ADC config written.")
 
-    # ---------------------------------------------------------------------
-    # ASIC register-based config (w09–w0E pack -> asic_word in HDL)
-    # ---------------------------------------------------------------------
-    def config_asic_from_constants(self):
-        """
-        Write PSTAT, I2X, CC, ADC, and CGM_EXT via WireIns 0x09–0x0E.
-
-        Matches HDL packing:
-            asic_word = {
-                wi0C[4:0],      // ADC OTA settings
-                wi0D[2:0],      // ADC startup sel
-                wi0D[7:4],      // ADC C2
-                wi09[6:0],      // PSTAT block enables
-                wi0A[3:0],      // I2X switches
-                wi0B[2:0],      // CC gain
-                wi0B[11:7],     // CC sel (5 bits)
-                wi0E[0],        // CGM_EXT
-                8'd0
-            }
-        """
-        # wi09: PSTAT enables (7 bits)
-        w9 = 0
-        if cfg.PSTAT_S_BIAS:   w9 |= 1 << 0
-        if cfg.PSTAT_S_CC:     w9 |= 1 << 1
-        if cfg.PSTAT_S_OTAW:   w9 |= 1 << 2
-        if cfg.PSTAT_S_CLSABW: w9 |= 1 << 3
-        if cfg.PSTAT_S_OTAR:   w9 |= 1 << 4
-        if cfg.PSTAT_S_CLSABR: w9 |= 1 << 5
-        if cfg.PSTAT_S_SRE:    w9 |= 1 << 6
-
-        # wi0A: PSTAT I2X switches (4 bits)
-        wA = 0
-        if cfg.PSTAT_OTAWI2X:   wA |= 1 << 0
-        if cfg.PSTAT_OTARI2X:   wA |= 1 << 1
-        if cfg.PSTAT_CLSABWI2X: wA |= 1 << 2
-        if cfg.PSTAT_CLSABRI2X: wA |= 1 << 3
-
-        # wi0B: CC gain (bits 2:0) + CC sel (bits 11:7)
-        wB = 0
-        wB |= (cfg.CC_GAIN & 0x7)          # bits [2:0]
-        wB |= (cfg.CC_SEL & 0x1F) << 7     # bits [11:7]
-
-        # wi0C: ADC OTA settings. You can change packing later if needed.
-        # Here: lower 2 bits = OTA1, next 2 bits = OTA2.
-        wC = 0
-        wC |= (cfg.ADC_OTA1 & 0x3) << 0
-        wC |= (cfg.ADC_OTA2 & 0x3) << 2
-        # wC[4] left as 0 for now.
-
-        # wi0D: ADC startup sel (2:0) + C2 (7:4)
-        wD = 0
-        wD |= (cfg.ADC_STARTUP_SEL & 0x7)      # bits [2:0]
-        wD |= (cfg.ADC_C2 & 0xF) << 4          # bits [7:4]
-
-        # wi0E: CGM_EXT in bit0
-        wE = (cfg.CGM_EXT & 0x1)
-
-        self.dev.SetWireInValue(cfg.EP_WI_PSTAT_EN,  w9 & 0xFFFFFFFF)
-        self.dev.SetWireInValue(cfg.EP_WI_PSTAT_I2X, wA & 0xFFFFFFFF)
-        self.dev.SetWireInValue(cfg.EP_WI_CC_CFG,    wB & 0xFFFFFFFF)
-        self.dev.SetWireInValue(cfg.EP_WI_ADC_OTA,   wC & 0xFFFFFFFF)
-        self.dev.SetWireInValue(cfg.EP_WI_ADC_MISC,  wD & 0xFFFFFFFF)
-        self.dev.SetWireInValue(cfg.EP_WI_CGM_EXT,   wE & 0xFFFFFFFF)
-        self.dev.UpdateWireIns()
-        print("ASIC config (PSTAT/CC/ADC/CGM) written to WireIns 0x09–0x0E.")
-
+    
     # ---------------------------------------------------------------------
     # Utilities for packing/unpacking
     # ---------------------------------------------------------------------
@@ -174,22 +108,17 @@ class OKTop:
     # SPI config FIFO + trigger (host 40-bit mode)
     # ---------------------------------------------------------------------
     def write_spi_config_word40(self, msb_32: int, lsb_32: int):
-        """
-        Send a 40-bit config 'word' to the SPI config FIFO via PipeIn 0x80.
+        '''Write a 40-bit SPI config word into the two PipeIns (0x80 and 0x81).'''
+        payload = self._u32_to_bytes_le(msb_32)
+        buf = bytearray(payload*4)
+        self.dev.WriteToPipeIn(cfg.EP_PI_CONFIG_MSB, buf)
+        print("SPI config MSB sent via PipeIn 0x80.")
 
-        HDL side:
-          - First 32-bit word -> cfg_msb_reg
-          - Second 32-bit word -> cfg_lsb_reg
-          - Then spi_config_wr pulses for one cycle
-
-        In WETOP:
-          use_host = spi_config_wr;
-          spi_word = use_host ? {msb[7:0], lsb} : asic_word;
-        """
-        payload = self._u32_to_bytes_le(msb_32) + self._u32_to_bytes_le(lsb_32)
-        buf = bytearray(payload)
-        self.dev.WriteToPipeIn(cfg.EP_PI_CONFIG, buf)
-        print("SPI config 40-bit word sent (MSB,LSB) via PipeIn 0x80.")
+        payload = self._u32_to_bytes_le(lsb_32)
+        buf = bytearray(payload*4)
+        self.dev.WriteToPipeIn(cfg.EP_PI_CONFIG_LSB, buf)
+        print("SPI config LSB sent via PipeIn 0x81.")
+        
 
     def trigger_spi_config(self):
         """
@@ -197,7 +126,7 @@ class OKTop:
         If you previously wrote to EP_PI_CONFIG, it uses host 40-bit word.
         If not, it uses the ASIC word built from WireIns 0x09–0x0E.
         """
-        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_CONFIG_BIT)
+        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 0)
         print("SPI/config trigger sent (TRIG_CONFIG_BIT).")
 
     # ---------------------------------------------------------------------
@@ -219,7 +148,7 @@ class OKTop:
     # ---------------------------------------------------------------------
     def trigger_task(self):
         """Kick off the 'task' FSM via TriggerIn 0x40, bit1."""
-        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_TASK_BIT)
+        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 1)
         print("Task trigger sent (TRIG_TASK_BIT).")
 
     def wait_for_task_done(self, timeout_s: float = 1.0) -> bool:
@@ -247,7 +176,21 @@ class OKTop:
         """
         n_bytes = n_words * 4
         buf = bytearray(n_bytes)
-        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT, buf)
+        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT_MSB, buf)
+        if got != n_bytes:
+            print(f"Warning: expected {n_bytes} bytes, got {got}.")
+        raw = bytes(buf[:got])
+        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
+        return words
+    
+    def read_spi_out_lsb(self, n_words: int):
+        """
+        Read n_words of SPI output LSB data from PipeOut 0xA1.
+        Returns list of ints.
+        """
+        n_bytes = n_words * 4
+        buf = bytearray(n_bytes)
+        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT_LSB, buf)
         if got != n_bytes:
             print(f"Warning: expected {n_bytes} bytes, got {got}.")
         raw = bytes(buf[:got])
@@ -256,7 +199,7 @@ class OKTop:
 
     def read_adc_out(self, n_words: int):
         """
-        Read n_words of ADC output data from PipeOut 0xA1.
+        Read n_words of ADC output data from PipeOut 0xA2.
         Returns list of ints.
         """
         n_bytes = n_words * 4
@@ -278,6 +221,67 @@ class OKTop:
         done_spi = bool(v & cfg.STATUS_DONE_SPI_BIT)
         done_task = bool(v & cfg.STATUS_DONE_TASK_BIT)
         return {"raw": v, "done_spi": done_spi, "done_task": done_task}
+    
+    def read_spi_cnt(self):
+        """Read WireOut 0x21."""
+        self.dev.UpdateWireOuts()
+        v = self.dev.GetWireOutValue(cfg.EP_WO_SPI_CNT)
+        return {"raw": v}
+    # ---------------------------------------------------------------------
+    #
+    # ---------------------------------------------------------------------
+    
+    def gen_config_code(self,I_MUX_OUT,ION_EN,PM_EN,ADC_MUX):
+        '''
+            assemble 40-bit config code to be sent to SPI0
+            with settings from weconfig.py
+        '''
+        lsb = self.binary_to_one_hot(cfg.CC_SEL,11)
+        lsb = lsb + (cfg.CC_GAIN << 11)
+        lsb = lsb + (cfg.PSTAT_CLSABRI2X << 13)
+        lsb = lsb + (cfg.PSTAT_CLSABWI2X << 14)
+        lsb = lsb + (cfg.PSTAT_OTARI2X << 15)
+        lsb = lsb + (cfg.PSTAT_OTAWI2X << 16)
+        lsb = lsb + (cfg.PSTAT_S_SRE << 17)
+        lsb = lsb + (cfg.PSTAT_S_CLSABR << 18)
+        lsb = lsb + (cfg.PSTAT_S_OTAR << 19)
+        lsb = lsb + (cfg.PSTAT_S_CLSABW << 20)
+        lsb = lsb + (cfg.PSTAT_S_OTAW << 21)
+        lsb = lsb + (cfg.PSTAT_S_CC << 22)
+        lsb = lsb + (cfg.PSTAT_S_BIAS << 23)
+        lsb = lsb + (ADC_MUX << 24)
+        lsb = lsb + (self.binary_to_thermo(cfg.ADC_C2) << 26)
+        lsb = lsb + (cfg.ADC_STARTUP_SEL << 30)
+
+        msb = self.binary_to_thermo(cfg.ADC_OTA2)
+        msb = msb + (self.binary_to_thermo(cfg.ADC_OTA1) << 2)
+        msb = msb + (PM_EN << 4)
+        msb = msb + (ION_EN << 5)
+        msb = msb + (cfg.CGM_EXT << 6)
+        msb = msb + (I_MUX_OUT << 7)
+        return msb , lsb
+
+    
+    def binary_to_one_hot(self,bin,num):
+        '''
+            Convert binary to one-hot encoding
+            bin: binary input (1 to num)
+            num: total number of bits
+        '''
+        one_hot = 1
+        one_hot = one_hot << (bin-1)
+        return one_hot
+
+    def binary_to_thermo(self,bin):
+        '''
+            Convert binary to thermometer encoding
+            bin: binary input (0 to n)
+        '''
+        thermo = 0
+        for i in range(bin):
+            thermo = thermo << 1
+            thermo = thermo + 1
+        return thermo
 
 
 # -------------------------------------------------------------------------
@@ -294,45 +298,40 @@ if __name__ == "__main__":
     print("Resetting system...")
     fpga.system_reset()
 
-    print("Setting modes: task=1, dac=1, adc=1")
-    fpga.set_modes(task_mode=1, dac_mode=1, adc_mode=1)
+    #print("Setting modes: task=1, dac=1, adc=1")
+    fpga.set_modes(task_mode=0, dac_mode=0, adc_mode=0)
 
     print("Writing simple DAC/ADC configs...")
     fpga.config_dac(t1=100, t2=200, ts1=50, ts2=50, nsam=16)
-    fpga.config_adc(twake=10, tsample=20, nsam=16)
+    fpga.config_adc(twake=100, tsample=100, nsam=65536)
 
-    # ---------------------------------------------------------------
-    # ASIC-wire-based SPI config path (uses wi09–wi0E -> asic_word)
-    # ---------------------------------------------------------------
-    print("Writing ASIC config via WireIns 0x09–0x0E...")
-    fpga.config_asic_from_constants()
-    print("Triggering SPI using ASIC config word...")
+
+    
+    msb, lsb = fpga.gen_config_code(I_MUX_OUT=0, ION_EN=0, PM_EN=0, ADC_MUX=0)
+    #print(f"Generated SPI config MSB: {hex(msb)}, LSB: {hex(lsb)}")
+
+    fpga.write_spi_config_word40(msb_32=msb, lsb_32=lsb)
+    
     fpga.trigger_spi_config()
-
+    fpga.trigger_spi_config()       
+    
     # ---------------------------------------------------------------
-    # OPTIONAL: host 40-bit SPI config path (manual override)
-    # Uncomment if you want to test the host-based packing:
-    #
-    # print("Sending dummy SPI config word from host...")
-    # msb = 0x00000001
-    # lsb = 0x000000AA
-    # fpga.write_spi_config_word40(msb_32=msb, lsb_32=lsb)
-    # fpga.trigger_spi_config()
-    # ---------------------------------------------------------------
-
-    print("Sending dummy waveform (ramp)...")
-    ramp = list(range(16))
-    fpga.write_waveform_words(ramp)
-
-    print("Triggering task...")
+    #print("Triggering task...")
     fpga.trigger_task()
-    fpga.wait_for_task_done(timeout_s=0.5)
+    fpga.wait_for_task_done(timeout_s=10)
+    
+    #print("Reading back SPI and ADC data...")
+    spi_data_msb = fpga.read_spi_out_msb(4)
+    spi_data_lsb = fpga.read_spi_out_lsb(4)
 
-    print("Reading back SPI and ADC data...")
-    spi_data = fpga.read_spi_out_msb(4)
-    adc_data = fpga.read_adc_out(4)
-    status = fpga.read_status()
+    adc_data = fpga.read_adc_out(100)
+    #status = fpga.read_status()
+    #cnt = fpga.read_spi_cnt()
+    #print(f"SPI count: {cnt['raw']}")
+    
+    
+    print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
+    print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
 
-    print("SPI out (MSB) words:", [hex(x) for x in spi_data])
     print("ADC out words:", [hex(x) for x in adc_data])
-    print("Status:", status)
+    #print("Status:", status)
