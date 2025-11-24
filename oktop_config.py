@@ -2,7 +2,7 @@
 # Combined ASIC config + OKTOP endpoint map
 
 # ----- Bitfile -----
-BITFILE = "weok.bit"
+BITFILE = "weok_512K_PPFIFO.bit"
 
 # ------------------------------
 # ASIC MODE / CONFIG CONSTANTS
@@ -43,6 +43,8 @@ MODE_PM      = 1
 MODE_PSTAT   = 2
 MODE_ADC     = 3
 MODE_ION     = 4
+
+FIFO_DEPTH = 131072  # depth of the ADC ping-pong FIFOs (must match HDL)
 
 # ------------------------------
 # OKTOP ENDPOINT MAP
@@ -101,7 +103,8 @@ TRIG_TASK_BIT    = 1 << 1   # maps to trigger_task
 
 # TriggerOut 0x60
 EP_TO_MAIN         = 0x60
-TRIG_TASK_DONE_BIT = 1 << 0  # task_done_pulse
+TRIG_TASK_DONE_BIT = 1      # task_done_pulse
+TRIG_FIFO_FLIP_BIT  = 2     # fifo_flip_pulse
 
 # PipeIn
 EP_PI_CONFIG_MSB   = 0x80   # config MSB

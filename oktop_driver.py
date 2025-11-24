@@ -3,7 +3,6 @@
 # Python-side driver for the OKTOP / WETOP design.
 # Uses Opal Kelly FrontPanel Python API (ok.py) and the endpoint
 # definitions in oktop_config.py.
-
 import time
 import ok
 import oktop_config as cfg
@@ -127,7 +126,7 @@ class OKTop:
         If not, it uses the ASIC word built from WireIns 0x09–0x0E.
         """
         self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 0)
-        print("SPI/config trigger sent (TRIG_CONFIG_BIT).")
+        print("SPI/config trigger sent.")
 
     # ---------------------------------------------------------------------
     # Waveform FIFO
@@ -143,13 +142,22 @@ class OKTop:
         self.dev.WriteToPipeIn(cfg.EP_PI_WAVEFORM, buf)
         print(f"Wrote {len(words32)} words to waveform FIFO (0x81).")
 
+    
+    # ---------------------------------------------------------------------
+    # FIFO control
+    # ---------------------------------------------------------------------
+    def trigger_flip(self):
+        """flip the ADC output ping-pong fifo."""
+        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 2)
+        print("FIFO flipped.")
+    
     # ---------------------------------------------------------------------
     # Task trigger + completion
     # ---------------------------------------------------------------------
     def trigger_task(self):
         """Kick off the 'task' FSM via TriggerIn 0x40, bit1."""
         self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 1)
-        print("Task trigger sent (TRIG_TASK_BIT).")
+        print("Task trigger sent.")
 
     def wait_for_task_done(self, timeout_s: float = 1.0) -> bool:
         """
@@ -165,6 +173,20 @@ class OKTop:
             time.sleep(0.001)
         print("Timeout waiting for task done trigger.")
         return False
+    
+    def task_watcher(self):
+        """update the triggers"""
+        data = []
+        while True:
+            self.dev.UpdateTriggerOuts()
+            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_TASK_DONE_BIT):
+                print("Task done trigger observed.")
+                self.trigger_flip()
+                data.append(self.read_adc_out(cfg.FIFO_DEPTH))
+                return data
+            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_FIFO_FLIP_BIT):
+                data.append(self.read_adc_out(cfg.FIFO_DEPTH))
+            time.sleep(0.001)
 
     # ---------------------------------------------------------------------
     # Reading from SPI / ADC FIFOs (PipeOuts)
@@ -303,35 +325,44 @@ if __name__ == "__main__":
 
     print("Writing simple DAC/ADC configs...")
     fpga.config_dac(t1=100, t2=200, ts1=50, ts2=50, nsam=16)
-    fpga.config_adc(twake=100, tsample=100, nsam=65536)
+    fpga.config_adc(twake=100, tsample=2**20, nsam=1)
 
 
     
     msb, lsb = fpga.gen_config_code(I_MUX_OUT=0, ION_EN=0, PM_EN=0, ADC_MUX=0)
-    #print(f"Generated SPI config MSB: {hex(msb)}, LSB: {hex(lsb)}")
+    print(f"Generated SPI config MSB: {hex(msb)}, LSB: {hex(lsb)}")
 
     fpga.write_spi_config_word40(msb_32=msb, lsb_32=lsb)
     
     fpga.trigger_spi_config()
-    fpga.trigger_spi_config()       
-    
-    # ---------------------------------------------------------------
-    #print("Triggering task...")
-    fpga.trigger_task()
-    fpga.wait_for_task_done(timeout_s=10)
-    
+    fpga.trigger_spi_config()
+
+    cnt = fpga.read_spi_cnt()
+    print(f"SPI triggered {cnt['raw']} times.")
+
     #print("Reading back SPI and ADC data...")
     spi_data_msb = fpga.read_spi_out_msb(4)
     spi_data_lsb = fpga.read_spi_out_lsb(4)
 
-    adc_data = fpga.read_adc_out(100)
-    #status = fpga.read_status()
-    #cnt = fpga.read_spi_cnt()
-    #print(f"SPI count: {cnt['raw']}")
-    
-    
     print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
     print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
 
-    print("ADC out words:", [hex(x) for x in adc_data])
+
+    
+    # ---------------------------------------------------------------
+    #print("Triggering task...")
+    fpga.trigger_task()
+    data = fpga.task_watcher()
+
+    with open("output.csv", "w") as f:
+        for item in data:
+            f.write(f"{item}\n")
+
+    #fpga.wait_for_task_done(timeout_s=10)
+    
+
+    #adc_data = fpga.read_adc_out(4)
+    #status = fpga.read_status() 
+    
+    #print("ADC out words:", [hex(x) for x in adc_data])
     #print("Status:", status)
