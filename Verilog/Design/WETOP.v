@@ -46,6 +46,10 @@ module WETOP(
     output  wire    [31:0]  data_out_spi_lsb,       //spi output fifo data output
 
     output  wire    [31:0]  data_out_adc,
+    
+    
+    input   wire            force_flip,
+    output  wire            full_ppfifo,
     //CHIP interface
     
     input   wire MISO,
@@ -224,18 +228,33 @@ fifo_w32_d1024 spi_out_lsb_fifo(
     .rd_rst_busy()
 );
 
-fifo_w32_d1024 adc_out_fifo(
+//fifo_w32_d1024 adc_out_fifo(
+//    .rst(rst),
+//    .wr_clk(clk_512k),
+//    .rd_clk(clk_100m),
+//    .din(adc_data_out),
+//    .wr_en(adc_out_wr),
+//    .rd_en(adc_out_rd),
+//    .dout(data_out_adc),
+//    .full(),
+//    .empty(),
+//    .wr_rst_busy(),
+//    .rd_rst_busy()
+//);
+
+FIFO_PP adc_out_fifo(
     .rst(rst),
-    .wr_clk(clk_512k),
     .rd_clk(clk_100m),
-    .din(adc_data_out),
+    .wr_clk(clk_512k),
     .wr_en(adc_out_wr),
     .rd_en(adc_out_rd),
-    .dout(data_out_adc),
-    .full(),
+    .force_flip(force_flip),
+    
+    .full(full_ppfifo),
     .empty(),
-    .wr_rst_busy(),
-    .rd_rst_busy()
+    
+    .data_in(adc_data_out),
+    .data_out(data_out_adc)
 );
 
 endmodule

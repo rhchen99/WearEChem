@@ -15,15 +15,38 @@ module OKTOP (
 
 );
 
-    //=====================================================================
-    // Board 100 MHz clock buffer 
-    //=====================================================================
-    wire sys_clk;
-    IBUFGDS osc_clk (
-        .O (sys_clk),
-        .I (sys_clkp),
-        .IB(sys_clkn)
+
+    //==============
+    //clock
+    //==============
+    wire weClk;
+ 
+    clk_wiz_0 clk_100m_to_12m8(
+        .clk_in1_p(sys_clkp),
+        .clk_in1_n(sys_clkn),
+        .clk_12m8(clk_12m8)
     );
+    
+    BUFGCE_DIV #(
+        .BUFGCE_DIVIDE(5)    // divide-by-5
+    ) div_5x_1 (
+        .I   (clk_12m8),
+        .CE  (1'b1),       // must be 1'b1 if no gating
+        .CLR (1'b0),
+        .O   (clk_2m56)
+    );
+    
+    BUFGCE_DIV #(
+        .BUFGCE_DIVIDE(5)    // divide-by-5
+    ) div_5x_2 (
+        .I   (clk_2m56),
+        .CE  (1'b1),       // must be 1'b1 if no gating
+        .CLR (1'b0),
+        .O   (clk_512k)
+    );
+
+    assign weClk = clk_512k;    //weClk runs at 512kHz
+
 
     //=====================================================================
     // FrontPanel host plumbing
@@ -69,6 +92,7 @@ module OKTOP (
     wire task_mode = wi00[1];
     wire dac_mode  = wi00[2];
     wire adc_mode  = wi00[3];
+    wire rst_weclk = wi00[4];
 
     wire [31:0] dac_T1   = wi01;
     wire [31:0] dac_T2   = wi02;
@@ -80,17 +104,7 @@ module OKTOP (
     wire [31:0] adc_TSAMPLE = wi07;
     wire [31:0] adc_NSAM    = wi08;
     
-    //==============
-    //clock
-    //==============
-    wire weClk;
-    
-//    clk_wiz_0 clk_64m(
-//        .clk_sys(sys_clk),
-//        .clk_64m(weClk),
-//        .reset(rst_we)
-//    );
-    assign weClk = okClk;
+
 
     //=====================================================================
     // TriggerIn
@@ -105,6 +119,7 @@ module OKTOP (
 
     wire trigger_config = trig40[0];
     wire trigger_task   = trig40[1];
+    wire force_flip     = trig40[2];
 
     //=====================================================================
     // PipeIn 0x80 : spi_msb
@@ -226,20 +241,27 @@ module OKTOP (
     //=====================================================================
     // TriggerOut 0x60
     //=====================================================================
-    wire done_spi, done_task;
+    wire done_spi, done_task, full_ppfifo;
 
-    reg done_task_q;
-    always @(posedge okClk or posedge rst_we) begin
-        if (rst_we)
+    reg done_task_q, full_ppfifo_q;
+    
+    always @(posedge weClk or posedge rst_we) begin
+        if (rst_we) begin
             done_task_q <= 1'b0;
-        else
+            full_ppfifo_q <= 1'b0;
+        end else begin
             done_task_q <= done_task;
+            full_ppfifo_q <= full_ppfifo;
+        end
     end
 
     wire task_done_pulse = done_task & ~done_task_q;
+    wire full_ppfifo_pulse = full_ppfifo & ~full_ppfifo_q;
 
     wire [31:0] trig60_bus;
+    
     assign trig60_bus[0] = task_done_pulse;
+    assign trig60_bus[1] = full_ppfifo_pulse;
 
     okTriggerOut t60 (
         .okHE(okHE),
@@ -250,7 +272,7 @@ module OKTOP (
     );
     
     reg [31:0] spi_done_cnt;
-    always @(posedge okClk or posedge rst_we) begin
+    always @(posedge weClk or posedge rst_we) begin
         if (rst_we)
             spi_done_cnt <= 32'd0;
         else if (done_spi)begin
@@ -259,7 +281,7 @@ module OKTOP (
     end
     
     reg [31:0] task_done_cnt;
-    always @(posedge okClk or posedge rst_we) begin
+    always @(posedge weClk or posedge rst_we) begin
         if (rst_we)
             task_done_cnt <= 32'd0;
         else if (done_task)begin
@@ -318,6 +340,9 @@ module OKTOP (
         .data_out_spi_msb(data_out_spi_msb),
         .data_out_spi_lsb(data_out_spi_lsb),
         .data_out_adc(data_out_adc),
+        
+        .force_flip(force_flip),
+        .full_ppfifo(full_ppfifo),
 
         .MISO(MISO),
         .SPI_CLK_OUT(SPI_CLK_OUT),
