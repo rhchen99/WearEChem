@@ -31,7 +31,7 @@ module SPI_control(
         end else begin
             if(!cs_b)begin
                 data_out_lsb <= {data_out_lsb[30:0],miso};
-                data_out_msb <= {data_out_msb[30:0],data_out_lsb[31]};
+                data_out_msb <= {24'd0,data_out_msb[6:0],data_out_lsb[31]};
             end
         end
     end

@@ -6,17 +6,11 @@ module ADC_control (
     input  wire [31:0]  TWAKE,           // cycles for state 1 (wake up time)
     input  wire [31:0]  TSAMPLE,           // cycles for state 3 (sample time)
     input  wire [31:0]  NSAM,           // number of samples (only used in incremental mode)
-
-    //input  wire         adc_out_ping_full,
-    //input  wire         adc_out_pong_full,
     
     output reg          done,        // ADC operation complete flag
-    
-    
+        
     output reg          adc_out_wr,
-    //output reg          adc_out_ping_wr,
-    //output reg          adc_out_pong_wr,
-    
+
     output reg          SLP,         // SLP signal
     output reg          DAC_STP_EXT, // DAC External startup signal
     output reg          RST_ADC,      // ADC reset signal
@@ -34,17 +28,15 @@ module ADC_control (
     localparam S3 = 2'd3;
     
     reg [1:0] state;
-    //reg state_pingpong;
-    
-    reg pong;
     
     reg [31:0] counter;
     reg [31:0] loop_count;  // counts S2↔S3 loops when mode=1
-
     
     wire [31:0] filter_out;
+    wire [31:0] pattern;
     
     assign adc_data_out = mode ? filter_out : {31'd0,ADC_OUT};
+    //assign adc_data_out = mode ? filter_out : pattern;
     
 COI2_Filter adcfilter(
     .clk(CLK_S_D_OUT),
@@ -54,22 +46,11 @@ COI2_Filter adcfilter(
     .dout(filter_out)
 );
 
-//    always @(posedge clk or posedge rst) begin
-//        if(rst) begin
-//            state_pingpong <= 2'b0;
-//        end else begin
-//            if (state_pingpong==0) begin
-//                if(adc_out_ping_full)begin
-//                    state_pingpong <= 2'b1;
-//                end
-//            end else begin
-//                if(adc_out_pong_full)begin
-//                    state_pingpong <= 2'b0;
-//                end
-//            end
-//        end        
-//    end
-    
+adc_pattern_gen patterngen(
+    .clk(CLK_S_D_OUT),
+    .rst(RST_ADC),
+    .data_out(pattern)
+);
     
     // FSM sequential logic
     always @(posedge clk or posedge rst) begin
@@ -146,17 +127,13 @@ COI2_Filter adcfilter(
         DAC_STP_EXT = 1'b0;
         RST_ADC     = 1'b0;
         adc_out_wr = 1'b0;
-//        adc_out_ping_wr  = 1'b0;
-//        adc_out_pong_wr  = 1'b0;
-
+        
         case (state)
             S0: begin
                 SLP         = 1'b1;
                 DAC_STP_EXT = 1'b0;
                 RST_ADC     = 1'b1;
                 adc_out_wr  = 1'b0;
-//                adc_out_ping_wr  = 1'b0;
-//                adc_out_pong_wr  = 1'b0;
             end
 
             S1: begin
@@ -164,8 +141,6 @@ COI2_Filter adcfilter(
                 DAC_STP_EXT = 1'b0;
                 RST_ADC     = 1'b1;
                 adc_out_wr  = 1'b0;
-//                adc_out_ping_wr  = 1'b0;
-//                adc_out_pong_wr  = 1'b0;
             end
 
             S2: begin
@@ -173,8 +148,6 @@ COI2_Filter adcfilter(
                 DAC_STP_EXT = 1'b1;
                 RST_ADC     = 1'b1;
                 adc_out_wr  = 1'b0;
-//                adc_out_ping_wr  = 1'b0;
-//                adc_out_pong_wr  = 1'b0;
             end
 
             S3: begin
@@ -183,27 +156,10 @@ COI2_Filter adcfilter(
                 RST_ADC     = 1'b0;
                 adc_out_wr  = 1'b0;
                 
-//                adc_out_ping_wr  = 1'b0;
-//                adc_out_pong_wr  = 1'b0;
-                
                 if(mode == 0)begin
-                    adc_out_wr  = 1'b1;
-//                    if (state_pingpong) begin
-//                        adc_out_ping_wr  = 1'b0;
-//                        adc_out_pong_wr  = 1'b1;
-//                    end else begin
-//                        adc_out_ping_wr  = 1'b1;
-//                        adc_out_pong_wr  = 1'b0;
-//                    end         
+                    adc_out_wr  = 1'b1;        
                 end else if (mode == 1 && counter == TSAMPLE +1) begin
                     adc_out_wr  = 1'b1;
-//                    if (state_pingpong) begin
-//                        adc_out_ping_wr  = 1'b0;
-//                        adc_out_pong_wr  = 1'b1;
-//                    end else begin
-//                        adc_out_ping_wr  = 1'b1;
-//                        adc_out_pong_wr  = 1'b0;
-//                    end 
                 end
             end
         endcase
