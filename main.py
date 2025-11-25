@@ -1,11 +1,20 @@
 import oktop_driver as oktop
 import oktop_config as cfg
-
+import ds360_driver as ds360
 
 if __name__ == "__main__":
 
     # ---------------------------------------------------------------
-    # system initialization
+    # DS360 initialization
+    # ---------------------------------------------------------------
+    vsrc = ds360.DS360()
+    vsrc.set_sine_waveform()
+    vsrc.set_offset(0)
+    vsrc.set_frequency(114.514)      
+    vsrc.set_amplitude(1.0)
+    vsrc.output_on()
+    # ---------------------------------------------------------------
+    # FPGA initialization
     # ---------------------------------------------------------------
     bitfile = cfg.BITFILE
     fpga = oktop.OKTop(bitfile)
@@ -82,6 +91,12 @@ if __name__ == "__main__":
     #spi_data_lsb = fpga.read_spi_out_lsb(4)
     #print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
     #print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
+
+    # ---------------------------------------------------------------
+    # shutdown ds360 and close connections
+    # ---------------------------------------------------------------
+    vsrc.output_off()
+    vsrc.close()
 
     # ---------------------------------------------------------------
     # data processing
