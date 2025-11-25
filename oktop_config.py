@@ -37,13 +37,6 @@ PSTAT_CLSABRI2X = 0
 CC_GAIN = 1   # 0 -> 10x, 1 -> 1x, 2 -> 0.1x, etc.
 CC_SEL  = 5   # 1..11, packed as 5 bits
 
-# MODE DEFINITIONS (high-level lab “modes” if you want them later)
-MODE_DEFAULT = 0
-MODE_PM      = 1
-MODE_PSTAT   = 2
-MODE_ADC     = 3
-MODE_ION     = 4
-
 FIFO_DEPTH = 131072  # depth of the ADC ping-pong FIFOs (must match HDL)
 
 # ------------------------------
@@ -69,41 +62,23 @@ EP_WI_ADC_TWAKE   = 0x06
 EP_WI_ADC_TSAMPLE = 0x07
 EP_WI_ADC_NSAM    = 0x08
 
-# WireIn 0x09–0x0E : ASIC config packing (matches HDL asic_word)
-#   asic_word = {
-#       wi0C[4:0],      // ADC OTA settings
-#       wi0D[2:0],      // ADC startup sel
-#       wi0D[7:4],      // ADC C2
-#       wi09[6:0],      // PSTAT block enables
-#       wi0A[3:0],      // I2X switches
-#       wi0B[2:0],      // CC gain
-#       wi0B[11:7],     // CC sel (5 bits)
-#       wi0E[0],        // CGM_EXT
-#       8'd0            // pad
-#   }
-EP_WI_PSTAT_EN  = 0x09  # wi09
-EP_WI_PSTAT_I2X = 0x0A  # wi0A
-EP_WI_CC_CFG    = 0x0B  # wi0B
-EP_WI_ADC_OTA   = 0x0C  # wi0C
-EP_WI_ADC_MISC  = 0x0D  # wi0D
-EP_WI_CGM_EXT   = 0x0E  # wi0E
-
 # WireOut 0x20 : status
 EP_WO_STATUS = 0x20
 STATUS_DONE_SPI_BIT  = 1 << 0
 STATUS_DONE_TASK_BIT = 1 << 1
 
+# WireOut 0x21–0x22 : counters
 EP_WO_SPI_CNT = 0x21
 EP_WO_TSK_CNT = 0x22
 
 # TriggerIn 0x40
 EP_TI_MAIN       = 0x40
-TRIG_CONFIG_BIT  = 1 << 0   # maps to trigger_config
-TRIG_TASK_BIT    = 1 << 1   # maps to trigger_task
+TRIG_CONFIG_BIT  = 0   # maps to trigger_config
+TRIG_TASK_BIT    = 1   # maps to trigger_task
 
 # TriggerOut 0x60
-EP_TO_MAIN         = 0x60
-TRIG_TASK_DONE_BIT = 1      # task_done_pulse
+EP_TO_MAIN          = 0x60
+TRIG_TASK_DONE_BIT  = 1      # task_done_pulse
 TRIG_FIFO_FLIP_BIT  = 2     # fifo_flip_pulse
 
 # PipeIn
