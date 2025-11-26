@@ -92,7 +92,7 @@ module OKTOP (
     okWireIn w0c (.okHE(okHE), .ep_addr(8'h0c), .ep_dataout(wi0c));
     okWireIn w0d (.okHE(okHE), .ep_addr(8'h0d), .ep_dataout(wi0d));
     okWireIn w0e (.okHE(okHE), .ep_addr(8'h0e), .ep_dataout(wi0e));
-    okWireIn w0f (.okHE(okHE), .ep_addr(8'h0e), .ep_dataout(wi0f));
+    okWireIn w0f (.okHE(okHE), .ep_addr(8'h0f), .ep_dataout(wi0f));
     okWireIn w10 (.okHE(okHE), .ep_addr(8'h10), .ep_dataout(wi10));
     okWireIn w11 (.okHE(okHE), .ep_addr(8'h11), .ep_dataout(wi11));
     okWireIn w12 (.okHE(okHE), .ep_addr(8'h12), .ep_dataout(wi12));
