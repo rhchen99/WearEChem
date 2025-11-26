@@ -108,194 +108,15 @@ class OKTop:
     def _u32_to_bytes_le(value: int) -> bytes:
         return int(value & 0xFFFFFFFF).to_bytes(4, byteorder="little", signed=False)
 
-    # ---------------------------------------------------------------------
-    # SPI config FIFO + trigger (host 40-bit mode)
-    # ---------------------------------------------------------------------
-    def write_spi_config_word40(self, msb_32: int, lsb_32: int):
-        '''Write a 40-bit SPI config word into the two PipeIns (0x80 and 0x81).'''
-        print("Writing SPI config words to FIFO...")
-        payload = self._u32_to_bytes_le(msb_32)
-        buf = bytearray(payload*4)
-        self.dev.WriteToPipeIn(cfg.EP_PI_CONFIG_MSB, buf)
-        print("SPI config MSB sent via PipeIn.")
-
-        payload = self._u32_to_bytes_le(lsb_32)
-        buf = bytearray(payload*4)
-        self.dev.WriteToPipeIn(cfg.EP_PI_CONFIG_LSB, buf)
-        print("SPI config LSB sent via PipeIn.")
-        
-
-    def trigger_spi_config(self):
-        """
-        Kick off the SPI/config FSM via TriggerIn 0x40, bit0.
-        """
-        print("Triggering SPI configuration...")
-        for i in range(4):
-            self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_CONFIG_BIT)
-        print("SPI/config trigger sent.")
-
-    # ---------------------------------------------------------------------
-    # Waveform FIFO
-    # ---------------------------------------------------------------------
-    def write_waveform_words(self, words32):
-        """
-        Write a list of 32-bit integers into the waveform FIFO via PipeIn 0x81.
-        """
-        print("Writing waveform data to FIFO...")
-        data = self.complete_to_multiple_of_16(words32)
-        buf = bytearray()        
-        for x in data:
-            buf += self._u32_to_bytes_le(x)        
-        self.dev.WriteToPipeIn(cfg.EP_PI_WAVEFORM, buf)
-        print(f"Wrote {len(words32)} words to waveform FIFO.")
-
-    
-    # ---------------------------------------------------------------------
-    # FIFO control
-    # ---------------------------------------------------------------------
-    def trigger_flip(self):
-        """flip the ADC output ping-pong fifo."""
-        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 2)
-        print("FIFO flipped.")
-    
-    # ---------------------------------------------------------------------
-    # Task trigger + completion
-    # ---------------------------------------------------------------------
-    def trigger_task(self):
-        """Kick off the 'task' FSM via TriggerIn 0x40, bit1."""
-        print("Triggering task...")
-        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_TASK_BIT)
-        print("Task trigger sent.")
-
-    def wait_for_task_done(self, timeout_s: float = 1.0) -> bool:
-        """
-        Poll TriggerOut 0x60 bit0 for task-done pulse.
-        Returns True if seen, False on timeout.
-        """
-        t0 = time.time()
-        while time.time() - t0 < timeout_s:
-            self.dev.UpdateTriggerOuts()
-            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_TASK_DONE_BIT):
-                print("Task done trigger observed.")
-                return True
-            time.sleep(0.001)
-        print("Timeout waiting for task done trigger.")
-        return False
-    
-    def task_watcher(self):
-        """update the triggers"""
-        data = []
-        while True:
-            self.dev.UpdateTriggerOuts()
-            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_TASK_DONE_BIT):
-                print("Task done trigger observed.")
-                self.trigger_flip()
-                data.extend(self.read_adc_out(cfg.FIFO_DEPTH))
-                return data
-            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_FIFO_FLIP_BIT):
-                data.extend(self.read_adc_out(cfg.FIFO_DEPTH))
-                data.pop()
-            time.sleep(0.001)
-
-    # ---------------------------------------------------------------------
-    # Reading from SPI / ADC FIFOs (PipeOuts)
-    # ---------------------------------------------------------------------
-    def read_spi_out_msb(self, n_words: int):
-        """
-        Read n_words of SPI output MSB data from PipeOut 0xA0.
-        Returns list of ints.
-        """
-        n_bytes = n_words * 4
-        buf = bytearray(n_bytes)
-        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT_MSB, buf)
-        if got != n_bytes:
-            print(f"Warning: expected {n_bytes} bytes, got {got}.")
-        raw = bytes(buf[:got])
-        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
-        return words
-    
-    def read_spi_out_lsb(self, n_words: int):
-        """
-        Read n_words of SPI output LSB data from PipeOut 0xA1.
-        Returns list of ints.
-        """
-        n_bytes = n_words * 4
-        buf = bytearray(n_bytes)
-        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT_LSB, buf)
-        if got != n_bytes:
-            print(f"Warning: expected {n_bytes} bytes, got {got}.")
-        raw = bytes(buf[:got])
-        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
-        return words
-
-    def read_adc_out(self, n_words: int):
-        """
-        Read n_words of ADC output data from PipeOut 0xA2.
-        Returns list of ints.
-        """
-        n_bytes = n_words * 4
-        buf = bytearray(n_bytes)
-        got = self.dev.ReadFromPipeOut(cfg.EP_PO_ADC_OUT, buf)
-        if got != n_bytes:
-            print(f"Warning: expected {n_bytes} bytes, got {got}.")
-        raw = bytes(buf[:got])
-        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
-        return words
-
-    # ---------------------------------------------------------------------
-    # Status wire
-    # ---------------------------------------------------------------------
-    def read_status(self):
-        """Read WireOut 0x20 and decode done flags."""
-        self.dev.UpdateWireOuts()
-        v = self.dev.GetWireOutValue(cfg.EP_WO_STATUS)
-        done_spi = bool(v & cfg.STATUS_DONE_SPI_BIT)
-        done_task = bool(v & cfg.STATUS_DONE_TASK_BIT)
-        return {"raw": v, "done_spi": done_spi, "done_task": done_task}
-    
-    def read_spi_cnt(self):
-        """Read WireOut 0x21."""
-        self.dev.UpdateWireOuts()
-        v = self.dev.GetWireOutValue(cfg.EP_WO_SPI_CNT)
-        print(f"SPI triggered {v} times.")
-        return {"raw": v}
-    # ---------------------------------------------------------------------
-    #
-    # ---------------------------------------------------------------------
-    
-    def gen_config_code(self,I_MUX_OUT,ION_EN,PM_EN,ADC_MUX):
+    def complete_to_multiple_of_4(self,lst):
         '''
-            assemble 40-bit config code to be sent to SPI0
-            with settings from weconfig.py
+            Pad the list to a multiple of 4 by repeating the last item
         '''
-        print("Generating SPI config code...")
-        lsb = self.binary_to_one_hot(cfg.CC_SEL,11)
-        lsb = lsb + (cfg.CC_GAIN << 11)
-        lsb = lsb + (cfg.PSTAT_CLSABRI2X << 13)
-        lsb = lsb + (cfg.PSTAT_CLSABWI2X << 14)
-        lsb = lsb + (cfg.PSTAT_OTARI2X << 15)
-        lsb = lsb + (cfg.PSTAT_OTAWI2X << 16)
-        lsb = lsb + (cfg.PSTAT_S_SRE << 17)
-        lsb = lsb + (cfg.PSTAT_S_CLSABR << 18)
-        lsb = lsb + (cfg.PSTAT_S_OTAR << 19)
-        lsb = lsb + (cfg.PSTAT_S_CLSABW << 20)
-        lsb = lsb + (cfg.PSTAT_S_OTAW << 21)
-        lsb = lsb + (cfg.PSTAT_S_CC << 22)
-        lsb = lsb + (cfg.PSTAT_S_BIAS << 23)
-        lsb = lsb + (ADC_MUX << 24)
-        lsb = lsb + (self.binary_to_thermo(cfg.ADC_C2) << 26)
-        lsb = lsb + (cfg.ADC_STARTUP_SEL << 30)
+        remainder = len(lst) % 4
+        for i in range(4 - remainder):
+            lst.append(lst[-1])  # repeat last item
+        return lst
 
-        msb = self.binary_to_thermo(cfg.ADC_OTA2)
-        msb = msb + (self.binary_to_thermo(cfg.ADC_OTA1) << 2)
-        msb = msb + (PM_EN << 4)
-        msb = msb + (ION_EN << 5)
-        msb = msb + (cfg.CGM_EXT << 6)
-        msb = msb + (I_MUX_OUT << 7)
-        print(f"Generated SPI config MSB: {hex(msb)}, LSB: {hex(lsb)}")
-        return msb , lsb
-
-    
     def binary_to_one_hot(self,bin,num):
         '''
             Convert binary to one-hot encoding
@@ -327,7 +148,141 @@ class OKTop:
         #expand to 32-bit
         code = code << 22
         return code
+    
+    # ---------------------------------------------------------------------
+    # SPI settings through WireIns
+    # ---------------------------------------------------------------------
+    def set_imux_out(self, imux_out: int):
+        """Set the I_MUX_OUT via WireIn 0x09."""
+        if imux_out not in (0, 1):
+            raise ValueError("I_MUX_OUT must be 0 or 1.")
+        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
+        if imux_out == 1:
+            current |= cfg.CTRL_IMUX_OUT_BIT
+        else:
+            current &= ~cfg.CTRL_IMUX_OUT_BIT
+        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"I_MUX_OUT set to {imux_out}.")
+    
+    def set_cgm_ext(self, cgm_ext: int):
+        """Set the CGM_EXT via WireIn 0x09."""
+        if cgm_ext not in (0, 1):
+            raise ValueError("CGM_EXT must be 0 or 1.")
+        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
+        if cgm_ext == 1:
+            current |= cfg.CTRL_CGM_EXT_BIT
+        else:
+            current &= ~cfg.CTRL_CGM_EXT_BIT
+        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"CGM_EXT set to {cgm_ext}.")
+    
+    def set_ion_en(self, ion_en: int):
+        """Set the ION_EN via WireIn 0x09."""
+        if ion_en not in (0, 1):
+            raise ValueError("ION_EN must be 0 or 1.")
+        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
+        if ion_en == 1:
+            current |= cfg.CTRL_ION_EN_BIT
+        else:
+            current &= ~cfg.CTRL_ION_EN_BIT
+        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"ION_EN set to {ion_en}.")
+    
+    def set_pm_en(self, pm_en: int):
+        """Set the PM_EN via WireIn 0x09."""
+        if pm_en not in (0, 1):
+            raise ValueError("PM_EN must be 0 or 1.")
+        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
+        if pm_en == 1:
+            current |= cfg.CTRL_PM_EN_BIT
+        else:
+            current &= ~cfg.CTRL_PM_EN_BIT
+        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"PM_EN set to {pm_en}.")
 
+    def set_cc_gain(self, gain):
+        """Set the CC gain via WireIn 0x11."""
+        if gain not in (1, 10, 0.1):
+            raise ValueError("Gain must be 0.1, 1 or 10.")
+        else:
+            if gain == 10:
+                bin = 0
+            elif gain == 1:
+                bin = 1
+            elif gain == 0.1:
+                bin = 2
+        self.dev.SetWireInValue(cfg.EP_WI_CC_GAIN, bin & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"CC gain set to {gain}.")
+    
+    def set_cc_sel(self, sel: int):
+        """Set the CC selection via WireIn 0x12."""
+        if not (1 <= sel <= 11):
+            raise ValueError("CC selection must be between 1 and 11.")
+        one_hot = self.binary_to_one_hot(sel,11)
+        self.dev.SetWireInValue(cfg.EP_WI_CC_SEL, one_hot & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"CC selection set to {sel}.")
+    
+    def set_adc_mux(self, mux: int):
+        """Set the ADC MUX via WireIn 0x0E."""
+        self.dev.SetWireInValue(cfg.EP_WI_ADC_MUX, mux & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"ADC MUX set to {mux}.")
+    
+    def set_adc_ota1(self, ota1: int):
+        """Set the ADC OTA1 via WireIn 0x0A."""
+        thermo = self.binary_to_thermo(ota1)
+        self.dev.SetWireInValue(cfg.EP_WI_ADC_OTA1, thermo & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"ADC OTA1 set to {ota1}.")
+    
+    def set_adc_ota2(self, ota2: int):
+        """Set the ADC OTA2 via WireIn 0x0B."""
+        thermo = self.binary_to_thermo(ota2)
+        self.dev.SetWireInValue(cfg.EP_WI_ADC_OTA2, thermo & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"ADC OTA2 set to {ota2}.")
+    
+    def set_adc_startup_sel(self, sel: int):
+        """Set the ADC STARTUP SEL via WireIn 0x0C."""
+        self.dev.SetWireInValue(cfg.EP_WI_ADC_STARTUP_SEL, sel & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"ADC STARTUP SEL set to {sel}.")
+    
+    def set_adc_c2(self, c2: int):
+        """Set the ADC C2 via WireIn 0x0D."""
+        thermo = self.binary_to_thermo(c2)
+        self.dev.SetWireInValue(cfg.EP_WI_ADC_C2, thermo & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"ADC C2 set to {c2}.")
+    
+    def set_pstat_sleep(self, sleep: int):
+        """Set the PSTAT ENABLES via WireIn 0x0F."""
+        self.dev.SetWireInValue(cfg.EP_WI_PSTAT_EN, sleep & 0xFFFFFFFF)
+        self.dev.UpdateWireIns()
+        print(f"PSTAT ENABLES set to {hex(sleep)}.")
+
+    # ---------------------------------------------------------------------
+    # SPI configuration trigger
+    # ---------------------------------------------------------------------
+    def trigger_spi_config(self):
+        """
+        Kick off the SPI/config FSM via TriggerIn 0x40, bit0.
+        """
+        print("Triggering SPI configuration...")
+        for i in range(2):
+            self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_CONFIG_BIT)
+        print("SPI/config trigger sent.")
+
+
+    # ---------------------------------------------------------------------
+    # Waveform generation
+    # ---------------------------------------------------------------------
     def gen_ramp(self,vstart,vstop,vstep):
         '''
             vstart: starting voltage (mV)
@@ -379,12 +334,128 @@ class OKTop:
             bin = self.analog_to_binary(v,cfg.VREF_MV)
             data.append(bin)
         return data
+    # ---------------------------------------------------------------------
+    # Waveform FIFO
+    # ---------------------------------------------------------------------
+    def write_waveform_words(self, words32):
+        """
+        Write a list of 32-bit integers into the waveform FIFO via PipeIn 0x81.
+        """
+        print("Writing waveform data to FIFO...")
+        data = self.complete_to_multiple_of_4(words32)
+        buf = bytearray()        
+        for x in data:
+            buf += self._u32_to_bytes_le(x)        
+        self.dev.WriteToPipeIn(cfg.EP_PI_WAVEFORM, buf)
+        print(f"Wrote {len(words32)} words to waveform FIFO.")
+
+    # ---------------------------------------------------------------------
+    # Task trigger + completion
+    # ---------------------------------------------------------------------
+    def trigger_task(self):
+        """Kick off the 'task' FSM via TriggerIn 0x40, bit1."""
+        print("Triggering task...")
+        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_TASK_BIT)
+        print("Task trigger sent.")
+
+    def wait_for_task_done(self, timeout_s: float = 1.0) -> bool:
+        """
+        Poll TriggerOut 0x60 bit0 for task-done pulse.
+        Returns True if seen, False on timeout.
+        """
+        t0 = time.time()
+        while time.time() - t0 < timeout_s:
+            self.dev.UpdateTriggerOuts()
+            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_TASK_DONE_BIT):
+                print("Task done trigger observed.")
+                return True
+            time.sleep(0.001)
+        print("Timeout waiting for task done trigger.")
+        return False
     
-    def complete_to_multiple_of_16(self,lst):
-        remainder = len(lst) % 4
-        for i in range(4 - remainder):
-            lst.append(lst[-1])  # repeat last item
-        return lst
+    def task_watcher(self):
+        """update the triggers"""
+        data = []
+        while True:
+            self.dev.UpdateTriggerOuts()
+            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_TASK_DONE_BIT):
+                print("Task done trigger observed.")
+                self.trigger_flip()
+                data.extend(self.read_adc_out(cfg.FIFO_DEPTH))
+                return data
+            if self.dev.IsTriggered(cfg.EP_TO_MAIN, cfg.TRIG_FIFO_FLIP_BIT):
+                data.extend(self.read_adc_out(cfg.FIFO_DEPTH))
+                data.pop()
+            time.sleep(0.001)
+    # ---------------------------------------------------------------------
+    # ADC Ping-pong FIFO Flip
+    # ---------------------------------------------------------------------
+    def trigger_flip(self):
+        """flip the ADC output ping-pong fifo."""
+        self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, 2)
+        print("FIFO flipped.")
+    # ---------------------------------------------------------------------
+    # Reading from SPI/ADC FIFOs (PipeOuts)
+    # ---------------------------------------------------------------------
+    def read_spi_out_msb(self, n_words: int):
+        """
+        Read n_words of SPI output MSB data from PipeOut 0xA0.
+        Returns list of ints.
+        """
+        n_bytes = n_words * 4
+        buf = bytearray(n_bytes)
+        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT_MSB, buf)
+        if got != n_bytes:
+            print(f"Warning: expected {n_bytes} bytes, got {got}.")
+        raw = bytes(buf[:got])
+        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
+        return words
+    
+    def read_spi_out_lsb(self, n_words: int):
+        """
+        Read n_words of SPI output LSB data from PipeOut 0xA1.
+        Returns list of ints.
+        """
+        n_bytes = n_words * 4
+        buf = bytearray(n_bytes)
+        got = self.dev.ReadFromPipeOut(cfg.EP_PO_SPI_OUT_LSB, buf)
+        if got != n_bytes:
+            print(f"Warning: expected {n_bytes} bytes, got {got}.")
+        raw = bytes(buf[:got])
+        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
+        return words
+
+    def read_adc_out(self, n_words: int):
+        """
+        Read n_words of ADC output data from PipeOut 0xA2.
+        Returns list of ints.
+        """
+        n_bytes = n_words * 4
+        buf = bytearray(n_bytes)
+        got = self.dev.ReadFromPipeOut(cfg.EP_PO_ADC_OUT, buf)
+        if got != n_bytes:
+            print(f"Warning: expected {n_bytes} bytes, got {got}.")
+        raw = bytes(buf[:got])
+        words = [int.from_bytes(raw[i:i+4], "little") for i in range(0, len(raw), 4)]
+        return words
+    # ---------------------------------------------------------------------
+    # Status wire
+    # ---------------------------------------------------------------------
+    def read_status(self):
+        """Read WireOut 0x20 and decode done flags."""
+        self.dev.UpdateWireOuts()
+        v = self.dev.GetWireOutValue(cfg.EP_WO_STATUS)
+        done_spi = bool(v & cfg.STATUS_DONE_SPI_BIT)
+        done_task = bool(v & cfg.STATUS_DONE_TASK_BIT)
+        return {"raw": v, "done_spi": done_spi, "done_task": done_task}
+    
+    def read_spi_cnt(self):
+        """Read WireOut 0x21."""
+        self.dev.UpdateWireOuts()
+        v = self.dev.GetWireOutValue(cfg.EP_WO_SPI_CNT)
+        print(f"SPI triggered {v} times.")
+        return {"raw": v}
+    
     
 # -------------------------------------------------------------------------
 # Quick bring-up test harness
@@ -394,14 +465,11 @@ if __name__ == "__main__":
 
     fpga = OKTop(bitfile)
 
-    print("Opening + configuring FPGA...")
     fpga.open_and_configure()
 
-    print("Resetting system...")
     fpga.system_reset()
 
-    fpga.set_modes(task_mode=0, dac_mode=0, adc_mode=0)
-    print("Writing simple DAC/ADC configs...")
+    fpga.set_modes(task_mode=1, dac_mode=0, adc_mode=0)
     
     wav = fpga.gen_ramp(vstart=2400, vstop=2560, vstep=10)
     print(f"Generated waveform with {len(wav)} samples.")
@@ -411,17 +479,21 @@ if __name__ == "__main__":
     fpga.config_adc(twake=100, tsample=2**20, nsam=1)
 
     
-    msb, lsb = fpga.gen_config_code(I_MUX_OUT=0, ION_EN=0, PM_EN=0, ADC_MUX=0)
-    print(f"Generated SPI config MSB: {hex(msb)}, LSB: {hex(lsb)}")
+    fpga.set_cc_gain(1)
+    fpga.set_cc_sel(5)
+    fpga.set_adc_mux(0)
+    fpga.set_adc_ota1(1)
+    fpga.set_adc_ota2(1)
+    fpga.set_adc_startup_sel(0)
+    fpga.set_adc_c2(2)
+    fpga.set_pstat_sleep(0)
 
-    fpga.write_spi_config_word40(msb_32=msb, lsb_32=lsb)
-    
+
     fpga.trigger_spi_config()
 
     fpga.write_waveform_words(wav)
 
     cnt = fpga.read_spi_cnt()
-    print(f"SPI triggered {cnt['raw']} times.")
 
     #print("Reading back SPI and ADC data...")
     spi_data_msb = fpga.read_spi_out_msb(4)
@@ -436,6 +508,12 @@ if __name__ == "__main__":
     #print("Triggering task...")
     fpga.trigger_task()
     data = fpga.task_watcher()
+
+    spi_data_msb = fpga.read_spi_out_msb(4)
+    spi_data_lsb = fpga.read_spi_out_lsb(4)
+
+    print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
+    print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
 
     with open("output.csv", "w") as f:
         for item in data:

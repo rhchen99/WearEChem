@@ -70,8 +70,8 @@ module WETOP(
 wire [31:0] spi_out_msb;
 wire [31:0] spi_out_lsb;
 wire [31:0] data_in_wav;
-wire [31:0] data_in_config_msb;
-wire [31:0] data_in_config_lsb;
+//wire [31:0] data_in_config_msb;
+//wire [31:0] data_in_config_lsb;
 wire [31:0] adc_data_out;
 
 assign trigger_adc = trigger_adc_task || trigger_adc_dac;
@@ -136,8 +136,8 @@ SPI_control spicontrol(
     .rst(rst),
     
     .data_in_wav(data_in_wav),
-    .data_in_config_msb(data_in_config_msb),
-    .data_in_config_lsb(data_in_config_lsb),
+    .data_in_config_msb(spi_config_msb_in),
+    .data_in_config_lsb(spi_config_lsb_in),
     
     .trigger_config(trigger_config),
     .trigger_dac(trigger_spi_dac),
@@ -172,33 +172,33 @@ fifo_w32_d1024 wav_fifo(
     .rd_rst_busy()
 );
 
-fifo_w32_d1024 config_msb_fifo(
-    .rst(rst),
-    .wr_clk(clk_100m),
-    .rd_clk(clk_512k),
-    .din(spi_config_msb_in),
-    .wr_en(spi_config_msb_wr),
-    .rd_en(spi_config_rd),
-    .dout(data_in_config_msb),
-    .full(),
-    .empty(),
-    .wr_rst_busy(),
-    .rd_rst_busy()
-);
+//fifo_w32_d1024 config_msb_fifo(
+//    .rst(rst),
+//    .wr_clk(clk_100m),
+//    .rd_clk(clk_512k),
+//    .din(spi_config_msb_in),
+//    .wr_en(spi_config_msb_wr),
+//    .rd_en(spi_config_rd),
+//    .dout(data_in_config_msb),
+//    .full(),
+//    .empty(),
+//    .wr_rst_busy(),
+//    .rd_rst_busy()
+//);
 
-fifo_w32_d1024 config_lsb_fifo(
-    .rst(rst),
-    .wr_clk(clk_100m),
-    .rd_clk(clk_512k),
-    .din(spi_config_lsb_in),
-    .wr_en(spi_config_lsb_wr),
-    .rd_en(spi_config_rd),
-    .dout(data_in_config_lsb),
-    .full(),
-    .empty(),
-    .wr_rst_busy(),
-    .rd_rst_busy()
-);
+//fifo_w32_d1024 config_lsb_fifo(
+//    .rst(rst),
+//    .wr_clk(clk_100m),
+//    .rd_clk(clk_512k),
+//    .din(spi_config_lsb_in),
+//    .wr_en(spi_config_lsb_wr),
+//    .rd_en(spi_config_rd),
+//    .dout(data_in_config_lsb),
+//    .full(),
+//    .empty(),
+//    .wr_rst_busy(),
+//    .rd_rst_busy()
+//);
 
 fifo_w32_d1024 spi_out_msb_fifo(
     .rst(rst),

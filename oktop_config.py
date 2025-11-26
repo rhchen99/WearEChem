@@ -9,34 +9,6 @@ BITFILE = "weok_512K_PPFIFO.bit"
 # ------------------------------
 VREF_MV = 2560.0  # DAC reference (mV)
 
-# DAC CONFIG
-CGM_EXT = 0  # 0 = internal const-gm ref, 1 = external
-
-# ADC CONFIG
-ADC_OTA1 = 1          # 0..2
-ADC_OTA2 = 1          # 0..2
-ADC_STARTUP_SEL = 0   # 0..3 (we pack into 3 bits)
-ADC_C2 = 2            # 0..4 (we pack into 4 bits)
-
-# PSTAT CONFIG (enables)
-PSTAT_S_BIAS   = 0
-PSTAT_S_CC     = 0
-PSTAT_S_OTAW   = 0
-PSTAT_S_CLSABW = 0
-PSTAT_S_OTAR   = 0
-PSTAT_S_CLSABR = 0
-PSTAT_S_SRE    = 0
-
-# PSTAT 2x-current switches
-PSTAT_OTAWI2X   = 0
-PSTAT_OTARI2X   = 0
-PSTAT_CLSABWI2X = 0
-PSTAT_CLSABRI2X = 0
-
-# CC CONFIG
-CC_GAIN = 1   # 0 -> 10x, 1 -> 1x, 2 -> 0.1x, etc.
-CC_SEL  = 5   # 1..11, packed as 5 bits
-
 FIFO_DEPTH = 131072  # depth of the ADC ping-pong FIFOs (must match HDL)
 
 # ------------------------------
@@ -62,6 +34,46 @@ EP_WI_ADC_TWAKE   = 0x06
 EP_WI_ADC_TSAMPLE = 0x07
 EP_WI_ADC_NSAM    = 0x08
 
+# WireIn 0x09 : SYSTEM_SPI
+EP_WI_SYSTEM_SPI = 0x09
+CTRL_IMUX_OUT_BIT = 1 << 3  # I_MUX_OUT
+CTRL_CGM_EXT_BIT  = 1 << 2  # CGM_EXT
+CTRL_ION_EN_BIT   = 1 << 1  # ION_EN
+CTRL_PM_EN_BIT    = 1 << 0  # PM_EN
+
+# WireIn 0x0A : ADC OTA1
+EP_WI_ADC_OTA1 = 0x0A
+# WireIn 0x0B : ADC OTA2
+EP_WI_ADC_OTA2 = 0x0B
+# WireIn 0x0C : ADC STARTUP SEL
+EP_WI_ADC_STARTUP_SEL = 0x0C
+# WireIn 0x0D : ADC C2
+EP_WI_ADC_C2 = 0x0D
+# WireIn 0x0E : ADC MUX
+EP_WI_ADC_MUX = 0x0E
+
+# WireIn 0x0F : PSTAT ENABLES
+EP_WI_PSTAT_EN = 0x0F
+CTRL_BIT_PSTAT_S_BIAS    = 1 << 6
+CTRL_BIT_PSTAT_S_CC      = 1 << 5
+CTRL_BIT_PSTAT_S_OTAW    = 1 << 4
+CTRL_BIT_PSTAT_S_CLSABW  = 1 << 3
+CTRL_BIT_PSTAT_S_OTAR    = 1 << 2
+CTRL_BIT_PSTAT_S_CLSABR  = 1 << 1
+CTRL_BIT_PSTAT_S_SRE     = 1 << 0
+
+# WireIn 0x10 : PSTAT 2x-current switches
+EP_WI_PSTAT_I2X = 0x10
+CTRL_BIT_PSTAT_OTAWI2X    = 1 << 3
+CTRL_BIT_PSTAT_OTARI2X    = 1 << 2
+CTRL_BIT_PSTAT_CLSABWI2X  = 1 << 1
+CTRL_BIT_PSTAT_CLSABRI2X  = 1 << 0
+
+# WireIn 0x11 : CC GAIN
+EP_WI_CC_GAIN = 0x11
+# WireIn 0x12 : CC SEL
+EP_WI_CC_SEL = 0x12
+
 # WireOut 0x20 : status
 EP_WO_STATUS = 0x20
 STATUS_DONE_SPI_BIT  = 1 << 0
@@ -82,9 +94,7 @@ TRIG_TASK_DONE_BIT  = 1      # task_done_pulse
 TRIG_FIFO_FLIP_BIT  = 2     # fifo_flip_pulse
 
 # PipeIn
-EP_PI_CONFIG_MSB   = 0x80   # config MSB
-EP_PI_CONFIG_LSB   = 0x81   # config LSB
-EP_PI_WAVEFORM     = 0x82   # waveform FIFO
+EP_PI_WAVEFORM     = 0x80   # waveform FIFO
 EP_PI_TST_IN       = 0x83   # test input FIFO (for debug)
 
 # PipeOut

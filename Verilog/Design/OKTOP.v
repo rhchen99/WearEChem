@@ -55,7 +55,7 @@ module OKTOP (
     wire [112:0] okHE;
     wire [64:0]  okEH;
 
-    wire [65*10-1:0] okEHx;
+    wire [65*8-1:0] okEHx;
 
     okHost okHI (
         .okUH (okUH),
@@ -67,7 +67,7 @@ module OKTOP (
         .okEH (okEH)
     );
 
-    okWireOR #(.N(10)) wireOR (
+    okWireOR #(.N(8)) wireOR (
         .okEH (okEH),
         .okEHx(okEHx)
     );
@@ -75,7 +75,7 @@ module OKTOP (
     //=====================================================================
     // WireIns: reset, modes, DAC + ADC settings
     //=====================================================================
-    wire [31:0] wi00, wi01, wi02, wi03, wi04, wi05, wi06, wi07, wi08;
+    wire [31:0] wi00, wi01, wi02, wi03, wi04, wi05, wi06, wi07, wi08, wi09, wi0a, wi0b, wi0c, wi0d, wi0e, wi0f, wi10, wi11, wi12;
 
     okWireIn w00 (.okHE(okHE), .ep_addr(8'h00), .ep_dataout(wi00));
     okWireIn w01 (.okHE(okHE), .ep_addr(8'h01), .ep_dataout(wi01));
@@ -86,13 +86,22 @@ module OKTOP (
     okWireIn w06 (.okHE(okHE), .ep_addr(8'h06), .ep_dataout(wi06));
     okWireIn w07 (.okHE(okHE), .ep_addr(8'h07), .ep_dataout(wi07));
     okWireIn w08 (.okHE(okHE), .ep_addr(8'h08), .ep_dataout(wi08));
-
+    okWireIn w09 (.okHE(okHE), .ep_addr(8'h09), .ep_dataout(wi09));
+    okWireIn w0a (.okHE(okHE), .ep_addr(8'h0a), .ep_dataout(wi0a));
+    okWireIn w0b (.okHE(okHE), .ep_addr(8'h0b), .ep_dataout(wi0b));
+    okWireIn w0c (.okHE(okHE), .ep_addr(8'h0c), .ep_dataout(wi0c));
+    okWireIn w0d (.okHE(okHE), .ep_addr(8'h0d), .ep_dataout(wi0d));
+    okWireIn w0e (.okHE(okHE), .ep_addr(8'h0e), .ep_dataout(wi0e));
+    okWireIn w0f (.okHE(okHE), .ep_addr(8'h0e), .ep_dataout(wi0f));
+    okWireIn w10 (.okHE(okHE), .ep_addr(8'h10), .ep_dataout(wi10));
+    okWireIn w11 (.okHE(okHE), .ep_addr(8'h11), .ep_dataout(wi11));
+    okWireIn w12 (.okHE(okHE), .ep_addr(8'h12), .ep_dataout(wi12));
+    
     // Decode control & settings
     wire rst_we    = wi00[0];
     wire task_mode = wi00[1];
     wire dac_mode  = wi00[2];
     wire adc_mode  = wi00[3];
-    wire rst_weclk = wi00[4];
 
     wire [31:0] dac_T1   = wi01;
     wire [31:0] dac_T2   = wi02;
@@ -104,8 +113,20 @@ module OKTOP (
     wire [31:0] adc_TSAMPLE = wi07;
     wire [31:0] adc_NSAM    = wi08;
     
-
-
+    
+    reg [31:0] spi_config_msb_in;
+    reg [31:0] spi_config_lsb_in;
+    
+    always @(posedge weClk or posedge rst_we)begin
+        if(rst_we)begin
+            spi_config_msb_in = 32'd0;
+            spi_config_lsb_in = 32'd0;
+        end else begin
+            spi_config_msb_in = {24'd0,wi09[3:0],wi0a[1:0],wi0b[1:0]};
+            spi_config_lsb_in = {wi0c[1:0],wi0d[3:0],wi0e[1:0],wi0f[6:0],wi10[3:0],wi11[1:0],wi12[10:0]};
+        end
+    end
+    
     //=====================================================================
     // TriggerIn
     //=====================================================================
@@ -120,45 +141,17 @@ module OKTOP (
     wire trigger_config = trig40[0];
     wire trigger_task   = trig40[1];
     wire force_flip     = trig40[2];
-
-    //=====================================================================
-    // PipeIn 0x80 : spi_msb
-    //=====================================================================
-    wire [31:0] spi_config_msb_in;
-    wire        spi_config_msb_wr;
-
-    okPipeIn p80_spi_msb (
-        .okHE(okHE),
-        .okEH(okEHx[0*65 +: 65]),
-        .ep_addr(8'h80),
-        .ep_dataout(spi_config_msb_in),
-        .ep_write(spi_config_msb_wr)
-    );
     
     //=====================================================================
-    // PipeIn 0x81 : spi_lsb
-    //=====================================================================
-    wire [31:0] spi_config_lsb_in;
-    wire        spi_config_lsb_wr;
-
-    okPipeIn p81_spi_lsb (
-        .okHE(okHE),
-        .okEH(okEHx[1*65 +: 65]),
-        .ep_addr(8'h81),
-        .ep_dataout(spi_config_lsb_in),
-        .ep_write(spi_config_lsb_wr)
-    );
-    
-    //=====================================================================
-    // PipeIn 0x82 : waveform
+    // PipeIn 0x80 : waveform
     //=====================================================================
     wire [31:0] spi_wav_in;
     wire        spi_wav_wr;
 
     okPipeIn p82_wav (
         .okHE(okHE),
-        .okEH(okEHx[2*65 +: 65]),
-        .ep_addr(8'h82),
+        .okEH(okEHx[0*65 +: 65]),
+        .ep_addr(8'h80),
         .ep_dataout(spi_wav_in),
         .ep_write(spi_wav_wr)
     );
@@ -170,7 +163,7 @@ module OKTOP (
 
     okWireOut w20 (
         .okHE(okHE),
-        .okEH(okEHx[3*65 +: 65]),
+        .okEH(okEHx[1*65 +: 65]),
         .ep_addr(8'h20),
         .ep_datain(status20)
     );
@@ -182,7 +175,7 @@ module OKTOP (
 
     okWireOut w21 (
         .okHE(okHE),
-        .okEH(okEHx[8*65 +: 65]),
+        .okEH(okEHx[2*65 +: 65]),
         .ep_addr(8'h21),
         .ep_datain(status21)
     );
@@ -191,7 +184,7 @@ module OKTOP (
 
     okWireOut w22 (
         .okHE(okHE),
-        .okEH(okEHx[9*65 +: 65]),
+        .okEH(okEHx[3*65 +: 65]),
         .ep_addr(8'h22),
         .ep_datain(status22)
     );
