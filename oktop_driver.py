@@ -14,6 +14,12 @@ class OKTop:
         self.serial = serial
         # Shadow for control WireIn (0x00)
         self._ctrl_shadow = 0
+        # Shadow for SYSTEM_SPI WireIn (0x09)
+        self._spi_shadow = 0
+        # Shadow for PSTAT ENABLES WireIn (0x0F)
+        self._pstat_shadow = 0
+        # Shadow for PSTAT 2x current (0x10)
+        self._pstat_i2x_shadow = 0
 
     # ---------------------------------------------------------------------
     # Low-level helpers / device init
@@ -40,6 +46,21 @@ class OKTop:
         self.dev.SetWireInValue(cfg.EP_WI_CTRL, self._ctrl_shadow & 0xFFFF)
         self.dev.UpdateWireIns()
 
+    def _update_sys_spi(self):
+        """Push the current control-word shadow to WireIn 0x00."""
+        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, self._spi_shadow & 0xFFFF)
+        self.dev.UpdateWireIns()
+    
+    def _update_pstat_slp(self):
+        """Push the current control-word shadow to WireIn 0x0F."""
+        self.dev.SetWireInValue(cfg.EP_WI_PSTAT_EN, self._pstat_shadow & 0xFFFF)
+        self.dev.UpdateWireIns()
+    
+    def _update_pstat_i2x(self):
+        """Push the current control-word shadow to WireIn 0x10."""
+        self.dev.SetWireInValue(cfg.EP_WI_PSTAT_I2X, self._pstat_i2x_shadow & 0xFFFF)
+        self.dev.UpdateWireIns()
+
     def set_ctrl_bits(self, mask: int, value: bool):
         """Set or clear bits in the control word (WireIn 0x00)."""
         if value:
@@ -54,6 +75,30 @@ class OKTop:
         if pulse_time > 0:
             time.sleep(pulse_time)
         self.set_ctrl_bits(mask, False)
+
+    def set_sys_spi(self, mask: int, value: bool):
+        """Set or clear bits in the control word (WireIn 0x00)."""
+        if value:
+            self._spi_shadow |= mask
+        else:
+            self._spi_shadow &= ~mask
+        self._update_sys_spi()
+    
+    def set_pstat_slp(self, mask: int, value: bool):
+        """Set or clear bits in the PSTAT ENABLES word (WireIn 0x0F)."""
+        if value:
+            self._pstat_shadow |= mask
+        else:
+            self._pstat_shadow &= ~mask
+        self._update_pstat_slp()
+    
+    def set_pstat_i2x(self, mask: int, value: bool):
+        """Set or clear bits in the PSTAT 2x current word (WireIn 0x10)."""
+        if value:
+            self._pstat_i2x_shadow |= mask
+        else:
+            self._pstat_i2x_shadow &= ~mask
+        self._update_pstat_i2x()
 
     # ---------------------------------------------------------------------
     # High-level system control
@@ -154,54 +199,22 @@ class OKTop:
     # ---------------------------------------------------------------------
     def set_imux_out(self, imux_out: int):
         """Set the I_MUX_OUT via WireIn 0x09."""
-        if imux_out not in (0, 1):
-            raise ValueError("I_MUX_OUT must be 0 or 1.")
-        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
-        if imux_out == 1:
-            current |= cfg.CTRL_IMUX_OUT_BIT
-        else:
-            current &= ~cfg.CTRL_IMUX_OUT_BIT
-        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
-        self.dev.UpdateWireIns()
+        self.set_sys_spi(cfg.CTRL_IMUX_OUT_BIT, bool(imux_out))
         print(f"I_MUX_OUT set to {imux_out}.")
     
     def set_cgm_ext(self, cgm_ext: int):
         """Set the CGM_EXT via WireIn 0x09."""
-        if cgm_ext not in (0, 1):
-            raise ValueError("CGM_EXT must be 0 or 1.")
-        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
-        if cgm_ext == 1:
-            current |= cfg.CTRL_CGM_EXT_BIT
-        else:
-            current &= ~cfg.CTRL_CGM_EXT_BIT
-        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
-        self.dev.UpdateWireIns()
+        self.set_sys_spi(cfg.CTRL_CGM_EXT_BIT, bool(cgm_ext))
         print(f"CGM_EXT set to {cgm_ext}.")
     
     def set_ion_en(self, ion_en: int):
         """Set the ION_EN via WireIn 0x09."""
-        if ion_en not in (0, 1):
-            raise ValueError("ION_EN must be 0 or 1.")
-        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
-        if ion_en == 1:
-            current |= cfg.CTRL_ION_EN_BIT
-        else:
-            current &= ~cfg.CTRL_ION_EN_BIT
-        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
-        self.dev.UpdateWireIns()
+        self.set_sys_spi(cfg.CTRL_ION_EN_BIT, bool(ion_en))
         print(f"ION_EN set to {ion_en}.")
-    
+
     def set_pm_en(self, pm_en: int):
         """Set the PM_EN via WireIn 0x09."""
-        if pm_en not in (0, 1):
-            raise ValueError("PM_EN must be 0 or 1.")
-        current = self.dev.GetWireInValue(cfg.EP_WI_SYSTEM_SPI)[0]
-        if pm_en == 1:
-            current |= cfg.CTRL_PM_EN_BIT
-        else:
-            current &= ~cfg.CTRL_PM_EN_BIT
-        self.dev.SetWireInValue(cfg.EP_WI_SYSTEM_SPI, current & 0xFFFFFFFF)
-        self.dev.UpdateWireIns()
+        self.set_sys_spi(cfg.CTRL_PM_EN_BIT, bool(pm_en))
         print(f"PM_EN set to {pm_en}.")
 
     def set_cc_gain(self, gain):
@@ -261,11 +274,26 @@ class OKTop:
         self.dev.UpdateWireIns()
         print(f"ADC C2 set to {c2}.")
     
-    def set_pstat_sleep(self, sleep: int):
+    def set_pstat_sleep(self, bias: int, cc: int, otaw: int, clsabw: int, otar: int, clsabr: int, sre: int):
         """Set the PSTAT ENABLES via WireIn 0x0F."""
-        self.dev.SetWireInValue(cfg.EP_WI_PSTAT_EN, sleep & 0xFFFFFFFF)
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_BIAS,    bool(bias))
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_CC,      bool(cc))
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_OTAW,    bool(otaw))
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_CLSABW,  bool(clsabw))
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_OTAR,    bool(otar))
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_CLSABR,  bool(clsabr))
+        self.set_pstat_slp(cfg.CTRL_BIT_PSTAT_S_SRE,     bool(sre))
         self.dev.UpdateWireIns()
-        print(f"PSTAT ENABLES set to {hex(sleep)}.")
+        print(f"PSTAT ENABLES set.")
+    
+    def set_pstat_i2x_all(self, otaw: int, otar: int, clsabw: int, clsabr: int):
+        """Set the PSTAT 2x-current switches via WireIn 0x10."""
+        self.set_pstat_i2x(cfg.CTRL_BIT_PSTAT_OTAWI2X,    bool(otaw))
+        self.set_pstat_i2x(cfg.CTRL_BIT_PSTAT_OTARI2X,    bool(otar))
+        self.set_pstat_i2x(cfg.CTRL_BIT_PSTAT_CLSABWI2X,  bool(clsabw))
+        self.set_pstat_i2x(cfg.CTRL_BIT_PSTAT_CLSABRI2X,  bool(clsabr))
+        self.dev.UpdateWireIns()
+        print(f"PSTAT 2x-current switches set.")
 
     # ---------------------------------------------------------------------
     # SPI configuration trigger
@@ -279,7 +307,16 @@ class OKTop:
             self.dev.ActivateTriggerIn(cfg.EP_TI_MAIN, cfg.TRIG_CONFIG_BIT)
         print("SPI/config trigger sent.")
 
+    def config_through_spi(self):
+        """Trigger SPI configuration and wait for completion."""
+        self.trigger_spi_config()
+        self.read_spi_cnt()
+        msb = self.read_spi_out_msb(4)
+        lsb = self.read_spi_out_lsb(4)
+        print("SPI out (MSB) words:", [hex(x) for x in msb])
+        print("SPI out (LSB) words:", [hex(x) for x in lsb])
 
+        
     # ---------------------------------------------------------------------
     # Waveform generation
     # ---------------------------------------------------------------------
@@ -289,12 +326,14 @@ class OKTop:
             vstop: final voltage (mV)
             vstep: step voltage (mV)
         '''
+        print("Generating ramp waveform...")
         data = []
         steps = int((vstop-vstart)/vstep + 1)
         for i in range(steps):
             v = vstart + i * vstep
             bin = self.analog_to_binary(v,cfg.VREF_MV)
             data.append(bin)
+        print(f"Generated waveform with {len(data)} samples.")
         return data
 
     def gen_cv(self,vstart,v1,v2,vstep):
@@ -304,6 +343,7 @@ class OKTop:
             v2: CV turning point2 (mV)
             vstep: step voltage (mV)
         '''
+        print("Generating CV waveform...")
         data = []
         steps = int((v1-vstart)/vstep)
         for i in range(steps):
@@ -315,6 +355,7 @@ class OKTop:
             v = v1 - i * vstep
             bin = self.analog_to_binary(v,cfg.VREF_MV)
             data.append(bin)
+        print(f"Generated waveform with {len(data)} samples.")
         return data
 
     def gen_dpv(self,vstart,vstop,vstep,vpulse):
@@ -324,6 +365,7 @@ class OKTop:
             vstep: step voltage (mV)
             vpulse: DPV pulse height (mV)
         '''
+        print("Generating DPV waveform...")
         data = []
         steps = int((vstop-vstart)/vstep + 1)
         for i in range(steps):
@@ -333,6 +375,7 @@ class OKTop:
             v = vstart + i * vstep + vpulse
             bin = self.analog_to_binary(v,cfg.VREF_MV)
             data.append(bin)
+        print(f"Generated waveform with {len(data)} samples.")
         return data
     # ---------------------------------------------------------------------
     # Waveform FIFO
@@ -472,13 +515,15 @@ if __name__ == "__main__":
     fpga.set_modes(task_mode=1, dac_mode=0, adc_mode=0)
     
     wav = fpga.gen_ramp(vstart=2400, vstop=2560, vstep=10)
-    print(f"Generated waveform with {len(wav)} samples.")
 
     fpga.config_dac(t1=100, t2=200, ts1=50, ts2=50, nsam=len(wav))
     
     fpga.config_adc(twake=100, tsample=2**20, nsam=1)
 
-    
+    fpga.set_imux_out(0)
+    fpga.set_cgm_ext(0)
+    fpga.set_ion_en(0)
+    fpga.set_pm_en(0)
     fpga.set_cc_gain(1)
     fpga.set_cc_sel(5)
     fpga.set_adc_mux(0)
@@ -486,21 +531,14 @@ if __name__ == "__main__":
     fpga.set_adc_ota2(1)
     fpga.set_adc_startup_sel(0)
     fpga.set_adc_c2(2)
-    fpga.set_pstat_sleep(0)
 
+    fpga.set_pstat_sleep(bias=0, cc=0, otaw=0, clsabw=0, otar=0, clsabr=0, sre=0)
+    fpga.set_pstat_i2x_all(otaw=0, otar=0, clsabw=0, clsabr=0)
+    
 
-    fpga.trigger_spi_config()
+    fpga.config_through_spi()
 
     fpga.write_waveform_words(wav)
-
-    cnt = fpga.read_spi_cnt()
-
-    #print("Reading back SPI and ADC data...")
-    spi_data_msb = fpga.read_spi_out_msb(4)
-    spi_data_lsb = fpga.read_spi_out_lsb(4)
-
-    print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
-    print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
 
 
     

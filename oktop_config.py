@@ -2,7 +2,7 @@
 # Combined ASIC config + OKTOP endpoint map
 
 # ----- Bitfile -----
-BITFILE = "weok_512K_PPFIFO.bit"
+BITFILE = "weok_fpga_verification.bit"
 
 # ------------------------------
 # ASIC MODE / CONFIG CONSTANTS
