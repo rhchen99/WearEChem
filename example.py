@@ -7,12 +7,12 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------
     # DS360 initialization
     # ---------------------------------------------------------------
-    vsrc = ds360.DS360()
-    vsrc.set_sine_waveform()
-    vsrc.set_offset(0)
-    vsrc.set_frequency(114.514)      
-    vsrc.set_amplitude(1.0)
-    vsrc.output_on()
+    #vsrc = ds360.DS360()
+    #vsrc.set_sine_waveform()
+    #vsrc.set_offset(0)
+    #vsrc.set_frequency(114.514)      
+    #vsrc.set_amplitude(1.0)
+    #vsrc.output_on()
     # ---------------------------------------------------------------
     # FPGA initialization
     # ---------------------------------------------------------------
@@ -22,30 +22,21 @@ if __name__ == "__main__":
     fpga.system_reset()
 
     # ---------------------------------------------------------------
-    # Set operating modes
-    # task_mode: 0 = ADC only, 1 = DAC
-    # dac_mode:  0 = DAC only, 1 = ADC Enabled
-    # adc_mode:  0 = Free-running, 1 = Incremental
-    # ---------------------------------------------------------------
-    fpga.set_modes(task_mode=0, dac_mode=0, adc_mode=0)
-
-    # ---------------------------------------------------------------
-    # SPI configuration generation
-    # I_MUX_OUT: 0 = current to ADC, 1 = current to output
-    # ION_EN:    0 = iontophoresis off, 1 = iontophoresis on
-    # PM_EN:     0 = process monitor off, 1 = process monitor on
-    # ---------------------------------------------------------------
-    msb, lsb = fpga.gen_config_code(I_MUX_OUT=0, ION_EN=0, PM_EN=0, ADC_MUX=0)
-
-    # ---------------------------------------------------------------
     # Waveform generation options:
     # gen_ramp: genrerate a ramp waveform
     # gen_cv: generate a cyclic voltammetry waveform
     # gen_dpv: generate a differential pulse voltammetry waveform
     # ---------------------------------------------------------------
-    print("Generating waveform...")
     wav = fpga.gen_ramp(vstart=2400, vstop=2560, vstep=10)
-    print(f"Generated waveform with {len(wav)} samples.")
+    fpga.write_waveform_words(wav) # load waveform into FIFO
+
+    # ---------------------------------------------------------------
+    # Set operating modes
+    # task_mode: 0 = ADC only, 1 = DAC
+    # dac_mode:  0 = DAC only, 1 = ADC Enabled
+    # adc_mode:  0 = Free-running, 1 = Incremental
+    # ---------------------------------------------------------------
+    fpga.set_modes(task_mode=1, dac_mode=0, adc_mode=0)
     
     # ---------------------------------------------------------------
     # DAC options:
@@ -67,17 +58,31 @@ if __name__ == "__main__":
     fpga.config_adc(twake=100, tsample=2**20, nsam=1)
 
     # ---------------------------------------------------------------
-    # load configuration and waveform into FIFOs
+    # SPI system configuration
     # ---------------------------------------------------------------
-    fpga.write_spi_config_word40(msb_32=msb, lsb_32=lsb)
-    fpga.write_waveform_words(wav)
-
+    fpga.set_imux_out(0) # 0 = current to ADC, 1 = current to output
+    fpga.set_cgm_ext(0)  # 0 = internal CGM, 1 = external CGM
+    fpga.set_ion_en(0)   # 0 = iontophoresis off, 1 = iontophoresis on
+    fpga.set_pm_en(0)    # 0 = process monitor off, 1 = process monitor on
     # ---------------------------------------------------------------
-    # trigger SPI (should trigger 4 times)
+    # SPI potentiostat configuration
     # ---------------------------------------------------------------
-    fpga.trigger_spi_config()
-    fpga.read_spi_cnt()
-    
+    fpga.set_cc_gain(1)  # 0.1x, 1x, 10x
+    fpga.set_cc_sel(5)   # 1 ... 11
+    fpga.set_pstat_sleep(bias=0, cc=0, otaw=0, clsabw=0, otar=0, clsabr=0, sre=0)
+    fpga.set_pstat_i2x_all(otaw=0, otar=0, clsabw=0, clsabr=0)
+    # ---------------------------------------------------------------
+    # SPI ADC configuration
+    # ---------------------------------------------------------------
+    fpga.set_adc_mux(0)
+    fpga.set_adc_ota1(1)
+    fpga.set_adc_ota2(1)
+    fpga.set_adc_startup_sel(0)
+    fpga.set_adc_c2(2)
+    # ---------------------------------------------------------------
+    # config through SPI, should be called before triggering task
+    # ---------------------------------------------------------------
+    fpga.config_through_spi()
     # ---------------------------------------------------------------
     # trigger task FSM and wait for completion   
     # ---------------------------------------------------------------
@@ -87,16 +92,16 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------
     # optional: read SPI output
     # ---------------------------------------------------------------
-    #spi_data_msb = fpga.read_spi_out_msb(4)
-    #spi_data_lsb = fpga.read_spi_out_lsb(4)
-    #print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
-    #print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
+    spi_data_msb = fpga.read_spi_out_msb(4)
+    spi_data_lsb = fpga.read_spi_out_lsb(4)
+    print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
+    print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
 
     # ---------------------------------------------------------------
     # shutdown ds360 and close connections
     # ---------------------------------------------------------------
-    vsrc.output_off()
-    vsrc.close()
+    #vsrc.output_off()
+    #vsrc.close()
 
     # ---------------------------------------------------------------
     # data processing
