@@ -1,6 +1,15 @@
 import numpy as np
 from sympy import primerange, nextprime
 
+import csv
+from pathlib import Path
+from datetime import datetime
+from dataclasses import dataclass
+
+# -----------------------------------------------------------------------------
+# Coherent sampling
+# -----------------------------------------------------------------------------
+
 def find_coherent_fin(fs: float, Mpoints: int, fin_set: float):
     """
     Compute a coherent sampling input frequency 'fin' close to 'fin_set'
@@ -66,4 +75,104 @@ def find_coherent_fin(fs: float, Mpoints: int, fin_set: float):
 
     return N, fin, info
 
+# -----------------------------------------------------------------------------
+# Configuration dataclasses
+# -----------------------------------------------------------------------------
 
+
+@dataclass
+class TestingSetup:
+    chip_id: int = 0
+    motherboard_id: int = 0
+
+
+@dataclass
+class ADCSamplingConfig:
+    fs: float = 0
+    fin_set: float = 0
+    bw: float = 0
+    osr: int = 0
+    adc_mode_set: int = 0      # 0: free running, 1: incremental
+    twake_set: int = 0
+    nsam_set: int = 0          # only valid in incremental mode
+    tsample_set: int = 0       # total sampling points
+    input_current_pk: float = 0
+    ds360_output_voltage_rms: float = 0
+    cs580_gain:int = 0
+
+
+@dataclass
+class ADCTrimBitsConfig:
+    adc_mux_set: int = 0
+    adc_ota1_set: int = 0
+    adc_ota2_set: int = 0
+    adc_startup_sel_set: int = 0
+    adc_c2_set: int = 0
+
+# -----------------------------------------------------------------------------
+# CSV logging
+# -----------------------------------------------------------------------------
+
+def save_to_csv(testing_setup: TestingSetup,
+                adc_sampling: ADCSamplingConfig,
+                adc_trim: ADCTrimBitsConfig,
+                data_list):
+    """
+    Save config blocks and data_list to a CSV.
+
+    CSV name: ADC_Testing_<timestamp>.csv
+    Location: Chip_<chip_id>/Test_Data
+    """
+
+    # Folder: Chip_<chip_id>/Test_Data
+    folder = Path("Test_Data") / f"Chip_{testing_setup.chip_id}"
+    folder.mkdir(parents=True, exist_ok=True)
+
+    # File name: ADC_Testing_<current time>.csv
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_path = folder / f"ADC_Measurement_{timestamp}.csv"
+
+    with csv_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+
+        # ---- Testing Setup ----
+        writer.writerow(["Testing Setup"])
+        writer.writerow(["chip_id", testing_setup.chip_id])
+        writer.writerow(["motherboard_id", testing_setup.motherboard_id])
+        writer.writerow([])
+
+        # ---- ADC Sampling Config ----
+        writer.writerow(["ADC Sampling Config"])
+        writer.writerow(["fs", adc_sampling.fs])
+        writer.writerow(["bw", adc_sampling.bw])
+        writer.writerow(["fin_set", adc_sampling.fin_set])
+        writer.writerow(["osr", adc_sampling.osr])
+        writer.writerow(["adc_mode_set", adc_sampling.adc_mode_set])
+        writer.writerow(["twake_set", adc_sampling.twake_set])
+        writer.writerow(["nsam_set", adc_sampling.nsam_set])
+        writer.writerow(["tsample_set", adc_sampling.tsample_set])
+        writer.writerow(["input_current_pk", adc_sampling.input_current_pk])
+        writer.writerow(["ds360_output_voltage_rms", adc_sampling.ds360_output_voltage_rms])
+        writer.writerow(["cs580_gain", adc_sampling.cs580_gain])
+        writer.writerow([])
+
+        # ---- ADC Trim Bits Config ----
+        writer.writerow(["ADC Trim Bits Config"])
+        writer.writerow(["adc_mux_set", adc_trim.adc_mux_set])
+        writer.writerow(["adc_ota1_set", adc_trim.adc_ota1_set])
+        writer.writerow(["adc_ota2_set", adc_trim.adc_ota2_set])
+        writer.writerow(["adc_startup_sel_set", adc_trim.adc_startup_sel_set])
+        writer.writerow(["adc_c2_set", adc_trim.adc_c2_set])
+
+        # ---- Empty row between variables and list ----
+        writer.writerow([])
+
+        # ---- Data list section ----
+        writer.writerow(["ADC Output Data"])
+        for row in data_list:
+            if isinstance(row, (list, tuple)):
+                writer.writerow(row)
+            else:
+                writer.writerow([row])
+
+    print(f"Saved CSV to: {csv_path}")
