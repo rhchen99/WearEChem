@@ -11,15 +11,24 @@ module OKTOP (
 
     // ---- Differential board clock  -----------
     input  wire sys_clkp,
-    input  wire sys_clkn
-
+    input  wire sys_clkn,
+    
+    output wire weClk,
+    
+    output wire rst_we,
+    output wire ion_sw,
+    
+    output reg [7:0]   ldo_en,
+    
+    output wire RST_ADC, DAC_STP_EXT, SLP,
+    output wire MOSI, CS_B, SPI_SEL, DACSYNC
+    
 );
 
 
     //==============
     //clock
     //==============
-    wire weClk;
  
     clk_wiz_0 clk_100m_to_12m8(
         .clk_in1_p(sys_clkp),
@@ -75,7 +84,7 @@ module OKTOP (
     //=====================================================================
     // WireIns: reset, modes, DAC + ADC settings
     //=====================================================================
-    wire [31:0] wi00, wi01, wi02, wi03, wi04, wi05, wi06, wi07, wi08, wi09, wi0a, wi0b, wi0c, wi0d, wi0e, wi0f, wi10, wi11, wi12;
+    wire [31:0] wi00, wi01, wi02, wi03, wi04, wi05, wi06, wi07, wi08, wi09, wi0a, wi0b, wi0c, wi0d, wi0e, wi0f, wi10, wi11, wi12, wi13;
 
     okWireIn w00 (.okHE(okHE), .ep_addr(8'h00), .ep_dataout(wi00));
     okWireIn w01 (.okHE(okHE), .ep_addr(8'h01), .ep_dataout(wi01));
@@ -96,9 +105,12 @@ module OKTOP (
     okWireIn w10 (.okHE(okHE), .ep_addr(8'h10), .ep_dataout(wi10));
     okWireIn w11 (.okHE(okHE), .ep_addr(8'h11), .ep_dataout(wi11));
     okWireIn w12 (.okHE(okHE), .ep_addr(8'h12), .ep_dataout(wi12));
+    okWireIn w13 (.okHE(okHE), .ep_addr(8'h13), .ep_dataout(wi13));
     
     // Decode control & settings
-    wire rst_we    = wi00[0];
+    assign rst_we    = wi00[0];
+    assign ion_sw    = wi00[4];
+    
     wire task_mode = wi00[1];
     wire dac_mode  = wi00[2];
     wire adc_mode  = wi00[3];
@@ -127,6 +139,13 @@ module OKTOP (
         end
     end
     
+    always @(posedge weClk or posedge rst_we)begin
+        if(rst_we)begin
+            ldo_en = 8'd0;
+        end else begin
+            ldo_en = wi13[7:0];
+        end
+    end
     //=====================================================================
     // TriggerIn
     //=====================================================================
@@ -286,10 +305,10 @@ module OKTOP (
     //=====================================================================
     // Dummy SPI + ADC wiring
     //=====================================================================
-    wire MOSI, MISO, CS_B, SPI_SEL, DACSYNC;
+    wire MISO;
     wire SPI_CLK_OUT;
     wire CLK_S_D_OUT, ADC_OUT;
-    wire RST_ADC, DAC_STP_EXT, SLP;
+    
 
     //=====================================================================
     // WETOP instance
