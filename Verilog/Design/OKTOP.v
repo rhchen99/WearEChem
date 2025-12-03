@@ -13,7 +13,8 @@ module OKTOP (
     input  wire sys_clkp,
     input  wire sys_clkn,
     
-    output wire weClk,
+    output wire spiClk,
+    output wire adClk,
     
     output wire rst_we,
     output wire ion_sw,
@@ -30,31 +31,42 @@ module OKTOP (
     //clock
     //==============
  
-    clk_wiz_0 clk_100m_to_12m8(
+    clk_wiz_0 clk_100m_to_25m6(
         .clk_in1_p(sys_clkp),
         .clk_in1_n(sys_clkn),
-        .clk_12m8(clk_12m8)
+        .clk_25m6(clk_25m6)
     );
     
     BUFGCE_DIV #(
         .BUFGCE_DIVIDE(5)    // divide-by-5
     ) div_5x_1 (
-        .I   (clk_12m8),
+        .I   (clk_25m6),
         .CE  (1'b1),       // must be 1'b1 if no gating
         .CLR (1'b0),
-        .O   (clk_2m56)
+        .O   (clk_5m12)
     );
     
     BUFGCE_DIV #(
         .BUFGCE_DIVIDE(5)    // divide-by-5
     ) div_5x_2 (
-        .I   (clk_2m56),
+        .I   (clk_5m12),
+        .CE  (1'b1),       // must be 1'b1 if no gating
+        .CLR (1'b0),
+        .O   (clk_1m024)
+    );
+    
+    BUFGCE_DIV #(
+        .BUFGCE_DIVIDE(2)    // divide-by-5
+    ) div_2x (
+        .I   (clk_1m024),
         .CE  (1'b1),       // must be 1'b1 if no gating
         .CLR (1'b0),
         .O   (clk_512k)
     );
-
+    
     assign weClk = clk_512k;    //weClk runs at 512kHz
+    assign spiClk = clk_512k;
+    assign adClk = clk_512k;
 
 
     //=====================================================================
