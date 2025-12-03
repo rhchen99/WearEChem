@@ -19,6 +19,8 @@ if __name__ == "__main__":
     bitfile = cfg.BITFILE
     fpga = oktop.OKTop(bitfile)
     fpga.open_and_configure()
+    
+    fpga.set_ldo_en_all(vrefdac=1, wegd=1, avdd3v0=1, vcm=1, ion3v0=1, ion1v8=1, dvdd1v8=1, avdd1v8=1)
     fpga.system_reset()
 
     # ---------------------------------------------------------------
@@ -36,7 +38,7 @@ if __name__ == "__main__":
     # dac_mode:  0 = DAC only, 1 = ADC Enabled
     # adc_mode:  0 = Free-running, 1 = Incremental
     # ---------------------------------------------------------------
-    fpga.set_modes(task_mode=1, dac_mode=0, adc_mode=0)
+    fpga.set_modes(task_mode=0, dac_mode=0, adc_mode=0)
     
     # ---------------------------------------------------------------
     # DAC options:
@@ -45,7 +47,7 @@ if __name__ == "__main__":
     # ts1: settling time before kicking adc in period 1
     # ts2: settling time before kicking adc in period 2
     # ---------------------------------------------------------------
-    fpga.config_dac(t1=100, t2=200, ts1=50, ts2=50, nsam=len(wav))
+    fpga.config_dac(t1=1000, t2=2000, ts1=500, ts2=500, nsam=len(wav))
 
     # ---------------------------------------------------------------
     # ADC options:

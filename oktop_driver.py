@@ -20,6 +20,8 @@ class OKTop:
         self._pstat_shadow = 0
         # Shadow for PSTAT 2x current (0x10)
         self._pstat_i2x_shadow = 0
+        # Shadow for LDO ENABLE (0x13)
+        self._ldo_en_shadow = 0
 
     # ---------------------------------------------------------------------
     # Low-level helpers / device init
@@ -60,6 +62,11 @@ class OKTop:
         """Push the current control-word shadow to WireIn 0x10."""
         self.dev.SetWireInValue(cfg.EP_WI_PSTAT_I2X, self._pstat_i2x_shadow & 0xFFFF)
         self.dev.UpdateWireIns()
+    
+    def _update_ldo_en(self):
+        """Push the current LDO ENABLE shadow to WireIn 0x13."""
+        self.dev.SetWireInValue(cfg.EP_WI_LDO_EN, self._ldo_en_shadow & 0xFFFF)
+        self.dev.UpdateWireIns()
 
     def set_ctrl_bits(self, mask: int, value: bool):
         """Set or clear bits in the control word (WireIn 0x00)."""
@@ -99,6 +106,14 @@ class OKTop:
         else:
             self._pstat_i2x_shadow &= ~mask
         self._update_pstat_i2x()
+    
+    def set_ldo_en(self, mask: int, value: bool):
+        """Set or clear bits in the LDO ENABLE word (WireIn 0x13)."""
+        if value:
+            self._ldo_en_shadow |= mask
+        else:
+            self._ldo_en_shadow &= ~mask
+        self._update_ldo_en()
 
     # ---------------------------------------------------------------------
     # High-level system control
@@ -294,6 +309,19 @@ class OKTop:
         self.set_pstat_i2x(cfg.CTRL_BIT_PSTAT_CLSABRI2X,  bool(clsabr))
         self.dev.UpdateWireIns()
         print(f"PSTAT 2x-current switches set.")
+
+    def set_ldo_en_all(self, vrefdac: int, wegd: int, avdd3v0: int, vcm: int, ion3v0: int, ion1v8: int, dvdd1v8: int, avdd1v8: int):
+        """Set the LDO ENABLE via WireIn 0x13."""
+        self.set_ldo_en(cfg.LDO_BIT_VREFDAC,  bool(vrefdac))
+        self.set_ldo_en(cfg.LDO_BIT_WEGD,     bool(wegd))
+        self.set_ldo_en(cfg.LDO_BIT_AVDD3V0,  bool(avdd3v0))
+        self.set_ldo_en(cfg.LDO_BIT_VCM,      bool(vcm))
+        self.set_ldo_en(cfg.LDO_BIT_ION3V0,   bool(ion3v0))
+        self.set_ldo_en(cfg.LDO_BIT_ION1V8,   bool(ion1v8))
+        self.set_ldo_en(cfg.LDO_BIT_DVDD1V8,  bool(dvdd1v8))
+        self.set_ldo_en(cfg.LDO_BIT_AVDD1V8,  bool(avdd1v8))
+        self.dev.UpdateWireIns()
+        print(f"LDO ENABLE set.")
 
     # ---------------------------------------------------------------------
     # SPI configuration trigger

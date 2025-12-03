@@ -2,7 +2,7 @@
 # Combined ASIC config + OKTOP endpoint map
 
 # ----- Bitfile -----
-BITFILE = "weok_fpga_verification.bit"
+BITFILE = "weok_fpga_ldo1.bit"
 
 # ------------------------------
 # ASIC MODE / CONFIG CONSTANTS
@@ -73,6 +73,17 @@ CTRL_BIT_PSTAT_CLSABRI2X  = 1 << 0
 EP_WI_CC_GAIN = 0x11
 # WireIn 0x12 : CC SEL
 EP_WI_CC_SEL = 0x12
+
+# WireIn 0x13 : LDO Enable
+EP_WI_LDO_EN = 0x13
+LDO_BIT_VREFDAC = 1<<0
+LDO_BIT_WEGD = 1<<1
+LDO_BIT_AVDD3V0 = 1<<2
+LDO_BIT_VCM = 1<<3
+LDO_BIT_ION3V0 = 1<<4
+LDO_BIT_ION1V8 = 1<<5
+LDO_BIT_DVDD1V8 = 1<<6
+LDO_BIT_AVDD1V8 = 1<<7
 
 # WireOut 0x20 : status
 EP_WO_STATUS = 0x20
