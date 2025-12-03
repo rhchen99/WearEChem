@@ -13,6 +13,9 @@ module OKTOP (
     input  wire sys_clkp,
     input  wire sys_clkn,
     
+    input  wire MISO,
+    input  wire SPI_CLK_OUT,
+    
     output wire spiClk,
     output wire adClk,
     
@@ -317,10 +320,7 @@ module OKTOP (
     //=====================================================================
     // Dummy SPI + ADC wiring
     //=====================================================================
-    wire MISO;
-    wire SPI_CLK_OUT;
     wire CLK_S_D_OUT, ADC_OUT;
-    
 
     //=====================================================================
     // WETOP instance
@@ -383,15 +383,15 @@ module OKTOP (
         .SLP(SLP)
     );
 
-    dummySPI fake_spi (
-        .clk(weClk),
-        .rst(rst_we),
-        .spi_sel(SPI_SEL),
-        .cs_b(CS_B),
-        .mosi(MOSI),
-        .clk_out(SPI_CLK_OUT),
-        .miso(MISO)
-    );
+//    dummySPI fake_spi (
+//        .clk(weClk),
+//        .rst(rst_we),
+//        .spi_sel(SPI_SEL),
+//        .cs_b(CS_B),
+//        .mosi(MOSI),
+//        .clk_out(SPI_CLK_OUT),
+//        .miso(MISO)
+//    );
 
     dummyADC fake_adc (
         .clk(weClk),
