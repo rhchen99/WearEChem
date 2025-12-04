@@ -2,6 +2,8 @@ module SPI_control(
     input wire        clk,
     input wire        rst,
     
+    input wire        spi_clk_out,
+    
     input wire [31:0] data_in_wav,
     input wire [31:0] data_in_config_msb,    
     input wire [31:0] data_in_config_lsb,    
@@ -10,6 +12,8 @@ module SPI_control(
     input wire        trigger_dac,
     
     input wire        miso,
+    
+    output wire       spiClk,
     
     output reg [31:0] data_out_msb,
     output reg [31:0] data_out_lsb,
@@ -23,6 +27,8 @@ module SPI_control(
     output reg        spi_config_rd,
     output reg        spi_out_wr
 );
+    
+    assign spiClk = (~clk)&(~cs_b);
     
     always @(posedge clk or posedge rst)begin
         if(rst)begin

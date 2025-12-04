@@ -68,9 +68,7 @@ module OKTOP (
     );
     
     assign weClk = clk_512k;    //weClk runs at 512kHz
-    assign spiClk = clk_512k;
     assign adClk = clk_512k;
-
 
     //=====================================================================
     // FrontPanel host plumbing
@@ -329,7 +327,9 @@ module OKTOP (
         .clk_100m(okClk),
         .clk_512k(weClk),
         .rst(rst_we),
-
+        
+        .spiClk(spiClk),
+        
         .task_mode(task_mode),
         .dac_mode(dac_mode),
         .dac_T1(dac_T1),

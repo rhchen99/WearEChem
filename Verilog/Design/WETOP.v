@@ -3,6 +3,8 @@ module WETOP(
     
     input   wire            clk_512k,            // logic clock (should be 512kHz)
     
+    output  wire            spiClk,
+    
     input   wire            rst,                //system reset
     //task settings
     input   wire            task_mode,
@@ -134,6 +136,9 @@ ADC_control adc_control(
 SPI_control spicontrol(
     .clk(clk_512k),
     .rst(rst),
+    
+    .spiClk(spiClk),
+    .spi_clk_out(SPI_CLK_OUT),
     
     .data_in_wav(data_in_wav),
     .data_in_config_msb(spi_config_msb_in),
