@@ -205,8 +205,6 @@ class OKTop:
             vref: reference voltage (mV)
         '''
         code = int((vin / vref) * 1024)
-        #expand to 32-bit
-        code = code << 22
         return code
     
     # ---------------------------------------------------------------------
