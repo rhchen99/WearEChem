@@ -137,6 +137,15 @@ class OKTop:
         self.set_ctrl_bits(cfg.CTRL_ADC_MODE_BIT,  bool(adc_mode))
         print("Modes set.")
 
+    def set_force_awake(self, force_awake: int):
+        """
+        Set the force_awake bit in WireIn 0x00.
+        force_awake: 0/1
+        """
+        print("Setting force_awake...")
+        self.set_ctrl_bits(cfg.CTRL_FORCE_AWAKE_BIT, bool(force_awake))
+        print("force_awake set.")
+    
     # ---------------------------------------------------------------------
     # DAC / ADC configuration (WireIns)
     # ---------------------------------------------------------------------

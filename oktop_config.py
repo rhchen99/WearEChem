@@ -21,6 +21,7 @@ CTRL_RST_BIT       = 1 << 0  # reset
 CTRL_TASK_MODE_BIT = 1 << 1  # task_mode
 CTRL_DAC_MODE_BIT  = 1 << 2  # dac_mode
 CTRL_ADC_MODE_BIT  = 1 << 3  # adc_mode
+CTRL_FORCE_AWAKE_BIT = 1 << 4  # force_awake
 
 # WireIn 0x01–0x05 : DAC Settings
 EP_WI_DAC_T1   = 0x01
