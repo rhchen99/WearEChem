@@ -2,3 +2,6 @@ __pycache__/
 *.csv
 Test_Data/
 
+example.py
+example_dac.py
+example_iontophoresis.py
