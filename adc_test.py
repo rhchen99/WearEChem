@@ -1,6 +1,7 @@
 import oktop_driver as oktop
 import oktop_config as cfg
 import ds360_driver as ds360
+import time
 
 import math
 
@@ -23,7 +24,7 @@ adc_trim      = ADCTrimBitsConfig()     # all zeros for now
 # Testing setup
 
 testing_setup.chip_id = 2
-testing_setup.motherboard_id = 2
+testing_setup.motherboard_id = 1
 
 # ADC sampling config
 
@@ -31,8 +32,8 @@ adc_sampling.fs = 512e3
 adc_sampling.osr = 256
 adc_sampling.bw = adc_sampling.fs/(2*adc_sampling.osr)
 adc_sampling.fin_set = 0.125*adc_sampling.bw
-adc_sampling.input_current_pk = 1e-6
-adc_sampling.cs580_gain = 1e-6          # CS580 gain A/V
+adc_sampling.input_current_pk = 100e-9
+adc_sampling.cs580_gain = 100e-9        # CS580 gain A/V
 
 adc_sampling.adc_mode_set = 0           # Set to 0 for free running mode, 1 for incremental mode
 adc_sampling.twake_set = 100
@@ -55,8 +56,10 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------
 
     if adc_sampling.adc_mode_set == 0:
+        Mpoints_sample = adc_sampling.tsample_set*2
         Mpoints_set = adc_sampling.tsample_set
     else:
+        Mpoints_sample = adc_sampling.nsam_set*2
         Mpoints_set = adc_sampling.nsam_set
     
     N, fin, info = find_coherent_fin(fs=adc_sampling.fs, Mpoints=Mpoints_set, fin_set=adc_sampling.fin_set)
@@ -84,6 +87,7 @@ if __name__ == "__main__":
     bitfile = cfg.BITFILE
     fpga = oktop.OKTop(bitfile)
     fpga.open_and_configure()
+    fpga.set_ldo_en_all(vrefdac=1, wegd=1, avdd3v0=1, vcm=1, ion3v0=1, ion1v8=1, dvdd1v8=1, avdd1v8=1)
     fpga.system_reset()
 
     # ---------------------------------------------------------------
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     # dac_mode:  0 = DAC only, 1 = ADC Enabled
     # adc_mode:  0 = Free-running, 1 = Incremental
     # ---------------------------------------------------------------
-    fpga.set_modes(task_mode=0, dac_mode=1, adc_mode = adc_sampling.adc_mode_set)
+    fpga.set_modes(task_mode=0, dac_mode=0, adc_mode = adc_sampling.adc_mode_set)
     
 
     # ---------------------------------------------------------------
@@ -103,7 +107,7 @@ if __name__ == "__main__":
     # nsam:    not used in free-running mode
     #          in incremental mode, this is the number of decimated samples
     # ---------------------------------------------------------------
-    fpga.config_adc(twake = adc_sampling.twake_set, tsample = adc_sampling.tsample_set, nsam = adc_sampling.nsam_set)
+    fpga.config_adc(twake = adc_sampling.twake_set, tsample = Mpoints_sample, nsam = Mpoints_sample)
 
     # ---------------------------------------------------------------
     # SPI system configuration
@@ -131,6 +135,7 @@ if __name__ == "__main__":
     # config through SPI, should be called before triggering task
     # ---------------------------------------------------------------
     fpga.config_through_spi()
+    time.sleep(1)
     # ---------------------------------------------------------------
     # trigger task FSM and wait for completion   
     # ---------------------------------------------------------------
@@ -140,10 +145,10 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------
     # optional: read SPI output
     # ---------------------------------------------------------------
-    spi_data_msb = fpga.read_spi_out_msb(4)
-    spi_data_lsb = fpga.read_spi_out_lsb(4)
-    print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
-    print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
+    # spi_data_msb = fpga.read_spi_out_msb(4)
+    # spi_data_lsb = fpga.read_spi_out_lsb(4)
+    # print("SPI out (MSB) words:", [hex(x) for x in spi_data_msb])
+    # print("SPI out (LSB) words:", [hex(x) for x in spi_data_lsb])
 
     # ---------------------------------------------------------------
     # shutdown ds360 and close connections
