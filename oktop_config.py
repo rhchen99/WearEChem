@@ -2,7 +2,7 @@
 # Combined ASIC config + OKTOP endpoint map
 
 # ----- Bitfile -----
-BITFILE = "weok_fpga_ldo1.bit"
+BITFILE = "weok_real_adc.bit"
 
 # ------------------------------
 # ASIC MODE / CONFIG CONSTANTS
@@ -21,7 +21,8 @@ CTRL_RST_BIT       = 1 << 0  # reset
 CTRL_TASK_MODE_BIT = 1 << 1  # task_mode
 CTRL_DAC_MODE_BIT  = 1 << 2  # dac_mode
 CTRL_ADC_MODE_BIT  = 1 << 3  # adc_mode
-CTRL_FORCE_AWAKE_BIT = 1 << 4  # force_awake
+CTRL_ION_SW_BIT    = 1 << 4  # ion_switch
+CTRL_FORCE_AWAKE_BIT = 1 << 5  # force_awake
 
 # WireIn 0x01–0x05 : DAC Settings
 EP_WI_DAC_T1   = 0x01

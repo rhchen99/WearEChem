@@ -145,6 +145,15 @@ class OKTop:
         print("Setting force_awake...")
         self.set_ctrl_bits(cfg.CTRL_FORCE_AWAKE_BIT, bool(force_awake))
         print("force_awake set.")
+
+    def set_cathode_switch(self, cathode_switch: int):
+        """
+        Set the cathode_switch bit in WireIn 0x00.
+        cathode_switch: 0/1
+        """
+        print("Setting cathode_switch...")
+        self.set_ctrl_bits(cfg.CTRL_ION_SW_BIT, bool(cathode_switch))
+        print("cathode_switch set.")
     
     # ---------------------------------------------------------------------
     # DAC / ADC configuration (WireIns)
