@@ -2,7 +2,7 @@
 # Combined ASIC config + OKTOP endpoint map
 
 # ----- Bitfile -----
-BITFILE = "weok_real_adc.bit"
+BITFILE = "weok.bit"
 
 # ------------------------------
 # ASIC MODE / CONFIG CONSTANTS
