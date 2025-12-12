@@ -16,6 +16,9 @@ module OKTOP (
     input  wire MISO,
     input  wire SPI_CLK_OUT,
     
+    input  wire ADC_OUT,
+    input  wire CLK_S_D_OUT,
+    
     output wire spiClk,
     output wire adClk,
     
@@ -66,6 +69,8 @@ module OKTOP (
         .CLR (1'b0),
         .O   (clk_512k)
     );
+    
+    assign gtClk = CLK_S_D_OUT;
     
     assign weClk = clk_512k;    //weClk runs at 512kHz
     assign adClk = clk_512k;
@@ -122,11 +127,13 @@ module OKTOP (
     
     // Decode control & settings
     assign rst_we    = wi00[0];
-    assign ion_sw    = wi00[4];
+    assign ion_sw    = wi00[4]; 
     
     wire task_mode = wi00[1];
     wire dac_mode  = wi00[2];
     wire adc_mode  = wi00[3];
+    
+    wire force_awake = wi00[5];
 
     wire [31:0] dac_T1   = wi01;
     wire [31:0] dac_T2   = wi02;
@@ -138,9 +145,10 @@ module OKTOP (
     wire [31:0] adc_TSAMPLE = wi07;
     wire [31:0] adc_NSAM    = wi08;
     
-    
     reg [31:0] spi_config_msb_in;
     reg [31:0] spi_config_lsb_in;
+    
+    assign SLP = force_awake ? 1'b0 : sleep;
     
     always @(posedge weClk or posedge rst_we)begin
         if(rst_we)begin
@@ -318,7 +326,6 @@ module OKTOP (
     //=====================================================================
     // Dummy SPI + ADC wiring
     //=====================================================================
-    wire CLK_S_D_OUT, ADC_OUT;
 
     //=====================================================================
     // WETOP instance
@@ -329,6 +336,7 @@ module OKTOP (
         .rst(rst_we),
         
         .spiClk(spiClk),
+        .gtClk(gtClk),
         
         .task_mode(task_mode),
         .dac_mode(dac_mode),
@@ -370,7 +378,6 @@ module OKTOP (
 
         .MISO(MISO),
         .SPI_CLK_OUT(SPI_CLK_OUT),
-        .CLK_S_D_OUT(CLK_S_D_OUT),
         .ADC_OUT(ADC_OUT),
 
         .MOSI(MOSI),
@@ -380,7 +387,7 @@ module OKTOP (
 
         .RST_ADC(RST_ADC),
         .DAC_STP_EXT(DAC_STP_EXT),
-        .SLP(SLP)
+        .SLP(sleep)
     );
 
 //    dummySPI fake_spi (
@@ -393,13 +400,13 @@ module OKTOP (
 //        .miso(MISO)
 //    );
 
-    dummyADC fake_adc (
-        .clk(weClk),
-        .rst_adc(RST_ADC),
-        .slp(SLP),
-        .clk_s_d_out(CLK_S_D_OUT),
-        .dout(ADC_OUT)
-    );
+//    dummyADC fake_adc (
+//        .clk(weClk),
+//        .rst_adc(RST_ADC),
+//        .slp(SLP),
+//        .clk_s_d_out(CLK_S_D_OUT),
+//        .dout(ADC_OUT)
+//    );
 
     assign status20[0]    = done_spi;
     assign status20[1]    = done_task;

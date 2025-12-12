@@ -15,7 +15,7 @@ module ADC_control (
     output reg          DAC_STP_EXT, // DAC External startup signal
     output reg          RST_ADC,      // ADC reset signal
     
-    input wire          CLK_S_D_OUT,
+    input wire          gtClk,
     input wire          ADC_OUT,
     
     output wire [31:0]  adc_data_out     
@@ -37,20 +37,21 @@ module ADC_control (
     
     assign adc_data_out = mode ? filter_out : {31'd0,ADC_OUT};
     //assign adc_data_out = mode ? filter_out : pattern;
-    
+
+wire clk_inv = clk;
+
 COI2_Filter adcfilter(
-    .clk(CLK_S_D_OUT),
-    .rst(rst),
-    .rst_adc(RST_ADC),
+    .clk(clk_inv),
+    .rst(RST_ADC),
     .din(ADC_OUT),
     .dout(filter_out)
 );
 
-adc_pattern_gen patterngen(
-    .clk(CLK_S_D_OUT),
-    .rst(RST_ADC),
-    .data_out(pattern)
-);
+//adc_pattern_gen patterngen(
+//    .clk(CLK_S_D_OUT),
+//    .rst(RST_ADC),
+//    .data_out(pattern)
+//);
     
     // FSM sequential logic
     always @(posedge clk or posedge rst) begin
@@ -99,7 +100,7 @@ adc_pattern_gen patterngen(
                             counter <= counter +1'b1;
                         end
                     end else begin
-                        if(counter >= TSAMPLE+1)begin
+                        if(counter >= TSAMPLE-1)begin
                             counter <= 32'd0;
                             if (loop_count < NSAM -1) begin
                                 loop_count <= loop_count +1'b1;
@@ -158,7 +159,7 @@ adc_pattern_gen patterngen(
                 
                 if(mode == 0)begin
                     adc_out_wr  = 1'b1;        
-                end else if (mode == 1 && counter == TSAMPLE +1) begin
+                end else if (mode == 1 && counter == TSAMPLE -1) begin
                     adc_out_wr  = 1'b1;
                 end
             end

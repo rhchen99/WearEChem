@@ -4,6 +4,7 @@ module WETOP(
     input   wire            clk_512k,            // logic clock (should be 512kHz)
     
     output  wire            spiClk,
+    input   wire            gtClk,
     
     input   wire            rst,                //system reset
     //task settings
@@ -56,7 +57,6 @@ module WETOP(
     
     input   wire MISO,
     input   wire SPI_CLK_OUT,
-    input   wire CLK_S_D_OUT,
     input   wire ADC_OUT,
     
     output  wire MOSI,
@@ -114,6 +114,8 @@ ADC_control adc_control(
     .clk(clk_512k),
     .rst(rst),
     
+    .gtClk(gtClk),
+    
     .mode(adc_mode),
     .TWAKE(adc_TWAKE),
     .TSAMPLE(adc_TSAMPLE),
@@ -126,7 +128,6 @@ ADC_control adc_control(
     .SLP(SLP),
     .DAC_STP_EXT(DAC_STP_EXT),
     .RST_ADC(RST_ADC),
-    .CLK_S_D_OUT(CLK_S_D_OUT),
     .ADC_OUT(ADC_OUT),
     .adc_data_out(adc_data_out)
 );
@@ -247,10 +248,12 @@ fifo_w32_d1024 spi_out_lsb_fifo(
 //    .rd_rst_busy()
 //);
 
+wire clk_512k_inv = ~clk_512k;
+
 FIFO_PP adc_out_fifo(
     .rst(rst),
     .rd_clk(clk_100m),
-    .wr_clk(clk_512k),
+    .wr_clk(clk_512k_inv),
     .wr_en(adc_out_wr),
     .rd_en(adc_out_rd),
     .force_flip(force_flip),
