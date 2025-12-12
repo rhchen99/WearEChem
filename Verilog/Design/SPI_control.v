@@ -105,7 +105,7 @@ module SPI_control(
                 LOAD_DAC: begin
                     cnt <= cnt +1;
                     if(cnt)begin
-                        shift_reg <= {data_in_wav,8'b0};
+                        shift_reg <= {8'b0,data_in_wav};
                         bit_cnt <= 6'd39;
                     end
                 end
