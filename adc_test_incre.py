@@ -36,14 +36,14 @@ adc_sampling.fin_set = 0.25*adc_sampling.bw
 adc_sampling.input_current_pk = 200e-9
 adc_sampling.cs580_gain = 100e-9        # CS580 gain A/V
 
-adc_sampling.adc_mode_set = 0           # Set to 0 for free running mode, 1 for incremental mode
+adc_sampling.adc_mode_set = 1           # Set to 0 for free running mode, 1 for incremental mode
 adc_sampling.twake_set = 100
-adc_sampling.nsam_set = 1               # Only valid in incremental mode, set to desire sampling points in incremental mode
-adc_sampling.tsample_set = 2**22        # Set to desire total sampling points in free running mode, set to osr in free running mode
+adc_sampling.nsam_set = 2**16               # Only valid in incremental mode, set to desire sampling points in incremental mode
+adc_sampling.tsample_set = adc_sampling.osr        # Set to desire total sampling points in free running mode, set to osr in free running mode
 
 # ADC trim bits config
 
-adc_trim.adc_mux_set = 0
+adc_trim.adc_mux_set = 3
 adc_trim.adc_ota1_set = 1
 adc_trim.adc_ota2_set = 1
 adc_trim.adc_startup_sel_set = 2
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         Mpoints_set = adc_sampling.tsample_set
     else:
         Mpoints_sample = adc_sampling.nsam_set*2
-        Mpoints_set = adc_sampling.nsam_set
+        Mpoints_set = adc_sampling.nsam_set*(adc_sampling.tsample_set+0)
     
     N, fin, info = find_coherent_fin(fs=adc_sampling.fs, Mpoints=Mpoints_set, fin_set=adc_sampling.fin_set)
     print(f"Coherent cycles N   : {N}")
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # nsam:    not used in free-running mode
     #          in incremental mode, this is the number of decimated samples
     # ---------------------------------------------------------------
-    fpga.config_adc(twake = adc_sampling.twake_set, tsample = Mpoints_sample, nsam = Mpoints_sample)
+    fpga.config_adc(twake = adc_sampling.twake_set, tsample = adc_sampling.tsample_set, nsam = Mpoints_sample)
 
     # ---------------------------------------------------------------
     # SPI system configuration
