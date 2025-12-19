@@ -44,7 +44,7 @@ adc_sampling.tsample_set = adc_sampling.osr        # Set to desire total samplin
 # ADC trim bits config
 
 adc_trim.adc_mux_set = 3
-adc_trim.adc_ota1_set = 1
+adc_trim.adc_ota1_set = 2
 adc_trim.adc_ota2_set = 1
 adc_trim.adc_startup_sel_set = 2
 adc_trim.adc_c2_set = 0
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         Mpoints_set = adc_sampling.tsample_set
     else:
         Mpoints_sample = adc_sampling.nsam_set*2
-        Mpoints_set = adc_sampling.nsam_set*(adc_sampling.tsample_set+0)
+        Mpoints_set = adc_sampling.nsam_set*(adc_sampling.tsample_set)
     
     N, fin, info = find_coherent_fin(fs=adc_sampling.fs, Mpoints=Mpoints_set, fin_set=adc_sampling.fin_set)
     print(f"Coherent cycles N   : {N}")

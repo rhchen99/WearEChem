@@ -33,7 +33,7 @@ adc_sampling.fs = 512e3
 adc_sampling.osr = 256
 adc_sampling.bw = adc_sampling.fs/(2*adc_sampling.osr)
 adc_sampling.fin_set = 0.25*adc_sampling.bw
-adc_sampling.input_current_pk = 200e-9
+adc_sampling.input_current_pk = 100e-9
 adc_sampling.cs580_gain = 100e-9        # CS580 gain A/V
 
 adc_sampling.adc_mode_set = 0           # Set to 0 for free running mode, 1 for incremental mode
@@ -43,8 +43,8 @@ adc_sampling.tsample_set = 2**22        # Set to desire total sampling points in
 
 # ADC trim bits config
 
-adc_trim.adc_mux_set = 0
-adc_trim.adc_ota1_set = 1
+adc_trim.adc_mux_set = 2
+adc_trim.adc_ota1_set = 2
 adc_trim.adc_ota2_set = 1
 adc_trim.adc_startup_sel_set = 2
 adc_trim.adc_c2_set = 0
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # SPI potentiostat configuration
     # ---------------------------------------------------------------
     fpga.set_cc_gain(10)  # 0.1x, 1x, 10x
-    fpga.set_cc_sel(4)   # 1 ... 11
+    fpga.set_cc_sel(6)   # 1 ... 11
     fpga.set_pstat_sleep(bias=0, cc=0, otaw=0, clsabw=0, otar=0, clsabr=0, sre=0)
     fpga.set_pstat_i2x_all(otaw=0, otar=0, clsabw=0, clsabr=0)
     # ---------------------------------------------------------------
